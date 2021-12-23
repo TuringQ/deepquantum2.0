@@ -115,9 +115,11 @@ class SingleGateOperation(Operation):
         if self.nqubits == -1 or self.wires == -1:
             raise ValueError("SingleGateOperation input error! cannot TN_operation")
         # print(self.wires)
-        temp = MPS[self.wires]
-        temp =  torch.squeeze(self.matrix @ temp.permute(1,2,0).unsqueeze(-1),dim=3)
-        MPS[self.wires] = temp.permute(2,0,1)
+        # temp = MPS[self.wires]
+        # temp =  torch.squeeze(self.matrix @ temp.permute(1,2,0).unsqueeze(-1),dim=3)
+        # MPS[self.wires] = temp.permute(2,0,1)
+        
+        MPS[self.wires] = torch.einsum('ab,bcd->acd',[self.matrix,MPS[self.wires]])
         return MPS
 
 
