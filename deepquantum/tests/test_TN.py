@@ -87,10 +87,10 @@ if 1:
     T1 = 0.0;T2 = 0.0
     for ii in range(itern):
         
-        #psi = nn.functional.normalize( torch.rand(1,2**N)+torch.rand(1,2**N)*1j,p=2,dim=1 )
-        psi = torch.zeros(1,2**N)+0.0j
-        psi[0,0] = 1.0+0j;#psi[0,-1] = 1.0+0j
-        psi = nn.functional.normalize( psi,p=2,dim=1 )
+        psi = nn.functional.normalize( torch.rand(1,2**N)+torch.rand(1,2**N)*1j,p=2,dim=1 )
+        # psi = torch.zeros(1,2**N)+0.0j
+        # psi[0,0] = 1.0+0j;#psi[0,-1] = 1.0+0j
+        # psi = nn.functional.normalize( psi,p=2,dim=1 )
         
         t1 = time.time()
         MPS0 = StateVec2MPS(psi, N)
@@ -107,14 +107,14 @@ if 1:
     print(psi_f0)
     print(psi_f1)
     #TN的优势在比特数很小时并不明显，甚至更差
-    print('比特数N：',N,' 矩阵相乘耗时:',T2/itern,' 张量网络耗时:',T1/itern)
+    print('比特数N：',N,' 矩阵相乘耗时:',T2/itern,' 张量网络耗时:',T1/itern,'  ratio:',T2/T1)
     #13qubit,优化矩阵后313s对8.5s，引入SWAP后TN：0.21s
     #12qubit时，65s对3s,优化矩阵后40s对2.2s，引入SWAP后40ss对0.16s
     #11qubit时，引入SWAP后5.3s对0.11s
     #10qubit是，1.5s对0.22s,优化矩阵后0.8s对0.2s,引入SWAP后0.8s对0.1s
     #14qubit:0.3s，15qubit:0.45s，16qubit:0.91s，18qubit:4.7s
 
-if 1:
+if 0:
     print('开始密度矩阵MPDO相关测试：')
     N = 9    #超过9个电脑就卡死了。量子线路的qubit总数
     wires_lst = list(range(N))
@@ -151,7 +151,7 @@ if 1:
 
     
 if 1:
-    print('测试单比特门+cnot门+toffoli等门对TN的支持：')
+    print('测试单比特门+cnot门+toffoli等所有门和layer对TN的支持：')
     N = 8
     psi = nn.functional.normalize( torch.rand(1,2**N)+torch.rand(1,2**N)*1j,p=2,dim=1 )
     #psi1 = nn.functional.normalize( torch.rand(1,2**N)+torch.rand(1,2**N)*1j,p=2,dim=1 )
@@ -222,15 +222,16 @@ if 1:
     c1.SWAP([0,2])
     c1.cz([0,1])
     psif0 = (c1.U() @ psi.view(-1,1)).view(1,-1)
+    
     MPS = StateVec2MPS(psi, N)
     MPS = c1.TN_evolution(MPS)
     psif1 = MPS2StateVec(MPS).view(1,-1)
     print(psif0)
     print(psif1)
 
-if 1:
+if 0:
     print('测试单比特门+cnot门+toffoli等门TN运行耗时：')
-    N = 12
+    N = 10
     psi = nn.functional.normalize( torch.rand(1,2**N)+torch.rand(1,2**N)*1j,p=2,dim=1 )
     #psi1 = nn.functional.normalize( torch.rand(1,2**N)+torch.rand(1,2**N)*1j,p=2,dim=1 )
     # psi = torch.zeros(1,2**N)+0.0j
@@ -257,7 +258,7 @@ if 1:
     c1.toffoli([0,1,N-1])
     c1.cz([0,1])
     
-    itern = 20
+    itern = 10
     T = 0.0
     for i in range(itern):
         t1 = time.time()

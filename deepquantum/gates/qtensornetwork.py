@@ -27,6 +27,11 @@ def StateVec2MPS(psi:torch.Tensor, N:int, d:int=2)->List[torch.Tensor]:
         c_tensor_block = torch.chunk(c_tensor, chunks=2, dim=1)
         c_tensor = torch.cat((c_tensor_block[0], c_tensor_block[1]), dim=0)
         
+        #最后一个qubit的张量无需SVD分解
+        if i == N-1:
+            rst_lst.append(c_tensor.view(2,-1,c_tensor.shape[1]))
+            continue
+        
         U,S,V = torch.svd( c_tensor )
         V_d = V.permute(1,0).conj()
         D = len( (S[torch.abs(S)>1e-8]).view(-1) ) #D：bond dimension
@@ -39,10 +44,7 @@ def StateVec2MPS(psi:torch.Tensor, N:int, d:int=2)->List[torch.Tensor]:
         
         rst_lst.append(U.view(2,-1,U.shape[1]))
         c_tensor = S @ V_d
-        # if i == N-1:
-        #     print('final:',c_tensor)
-    #t2 = time.time()
-    #print('SV2MPS:',t2-t1)
+        
     return rst_lst
 
 
@@ -64,8 +66,6 @@ def MPS2StateVec(tensor_lst:List[torch.Tensor])->torch.Tensor:
 
 
 def TensorDecompAfterTwoQbitGate(tensor:torch.Tensor):
-    #t1 = time.time()
-    #tensor = tensor.reshape(tensor.shape[0]*tensor.shape[2],tensor.shape[1]*tensor.shape[3])
     block1 = torch.cat((tensor[0,0],tensor[0,1]),dim=1)
     block2 = torch.cat((tensor[1,0],tensor[1,1]),dim=1)
     tensor = torch.cat((block1,block2),dim=0)
@@ -85,9 +85,7 @@ def TensorDecompAfterTwoQbitGate(tensor:torch.Tensor):
     rst2_block = torch.chunk(rst2, chunks=2, dim=1)
     rst2 = torch.cat((rst2_block[0], rst2_block[1]), dim=0)
     rst2 = rst2.view(2,-1,rst2.shape[1])
-    #print(rst1.shape,'  and  ',rst2.shape)
-    #t2 = time.time()
-    #print('DECOM:',t2-t1)
+    
     return rst1,rst2
 
 def TensorDecompAfterThreeQbitGate(tensor:torch.Tensor):
@@ -134,7 +132,6 @@ def MPS_inner_product(ketMPS,braMPS):
             t1 = t1.unsqueeze(2*j+1)
             t2 = t2.unsqueeze(2*j)
         qbit_tensor = (t2.conj() @ t1).squeeze()
-        #print(qbit_tensor.shape)
         lst.append(qbit_tensor)
     
     for i in range(len(lst)-1):

@@ -11,7 +11,7 @@ from deepquantum.gates.qoperator import Hadamard,rx,ry,rz,rxx,ryy,rzz,cnot,cz,SW
 from deepquantum.gates.qtensornetwork import StateVec2MPS,MPS2StateVec,TensorDecompAfterTwoQbitGate
 import time
 from typing import List
-import multiprocessing as mp
+#import multiprocessing as mp
 
 class SingleGateLayer(Operation):
     '''
@@ -28,45 +28,46 @@ class SingleGateLayer(Operation):
     
     def TN_operation(self,MPS:List[torch.Tensor])->List[torch.Tensor]:
         lst1 = self._cal_single_gates()
-        
-        # a = list(map(self.single_gate_mp,[MPS[qbit] for qbit in self.wires],[lst1[qbit] for qbit in self.wires]))
-        # for i, qbit in enumerate(self.wires):
-        #     MPS[qbit] = a[i]
         for qbit in self.wires:
-            temp = MPS[qbit]
-            temp = temp.permute(1,2,0).unsqueeze(-1) #2421
-            temp = torch.squeeze(lst1[qbit] @ temp, dim=3) #242 在指定维度squeeze
-            MPS[qbit] = temp.permute(2,0,1)
+            
+            # temp = MPS[qbit]
+            # temp = temp.permute(1,2,0).unsqueeze(-1) #2421
+            # temp = torch.squeeze(lst1[qbit] @ temp, dim=3) #242 在指定维度squeeze
+            # MPS[qbit] = temp.permute(2,0,1)
+            
+            MPS[qbit] = torch.einsum('ab,bcd->acd',[lst1[qbit],MPS[qbit]])
 
         return MPS
     
-    # def single_gate_mp(self,MPS_i,matrix):
-    #         MPS_i = MPS_i.permute(1,2,0).unsqueeze(-1) #2421
-    #         MPS_i = torch.squeeze(matrix @ MPS_i, dim=3) #242 在指定维度squeeze
-    #         MPS_i = MPS_i.permute(2,0,1)
-    #         return MPS_i
-    
-    # def TN_operation_mp(self,MPS:List[torch.Tensor])->List[torch.Tensor]:
-    #     lst1 = self._cal_single_gates()
-    #     num_cores = int(mp.cpu_count())
-    #     #print("本地计算机有: " + str(num_cores) + " 核心")
-    #     pool = mp.Pool(num_cores)
-    #     if len(self.wires) > num_cores:
-    #         rsts = []
-    #         for j in range( 1+int( len(self.wires)/num_cores )):
-    #             rst = [pool.apply_async( self.single_gate_mp,args=(MPS[self.wires[i]],lst1[self.wires[i]]) )\
-    #                    for i in range(min(num_cores,len(self.wires) - j*num_cores))]
+    #def TN_operation_mp(self,MPS:List[torch.Tensor])->List[torch.Tensor]:
+        # lst1 = self._cal_single_gates()
+        # pool = mp.Pool(processes=8)
+        # p_lst = []
+        # for qbit in self.wires:
             
-    #             rsts += [p.get() for p in rst]
-    #     else:
-    #         rst = [pool.apply_async( self.single_gate_mp,args=(MPS[self.wires[i]],lst1[self.wires[i]]) )\
-    #                for i in range(len(self.wires))]
-    #         rst = [p.get() for p in rst]
-    #         rsts = rst 
-    #     for i,r in enumerate(rsts):
-    #          MPS[self.wires[i]] = r
-
-    #     return MPS
+        #     #MPS[qbit] = torch.einsum('ab,bcd->acd',[lst1[qbit],MPS[qbit]])
+        #     p_lst.append( pool.apply_async(torch.einsum,args=('ab,bcd->acd',[lst1[qbit],MPS[qbit]])) )
+        #     #p = mp.Process(target=torch.einsum,args=('ab,bcd->acd',[lst1[qbit],MPS[qbit]]))
+        # pool.close()
+        # pool.join()
+        # for i,each in enumerate( p_lst ):
+        #     qbit = self.wires[i]
+        #     MPS[qbit] = each.get()
+        
+        # p_lst = []
+        # for qbit in self.wires:
+        #     p = mp.Process(target=torch.einsum,args=('ab,bcd->acd',[lst1[qbit],MPS[qbit]]))
+        #     p_lst.append(p)
+        #     p.start()
+        # for p in p_lst:
+        #     p.join()
+        # for i,p in enumerate(p_lst):
+        #     qbit = self.wires[i]
+        #     MPS[qbit] = p.get()
+        #     p.close()
+        # return MPS
+    
+    
 
 class TwoQbitGateLayer(Operation):
     '''
@@ -416,49 +417,54 @@ class ring_of_cnot(TwoQbitGateLayer):
             raise ValueError('ring_of_cnot,TN_operation error')
         L = len(self.wires)
         for i in range(L-1):
-            temp1 = MPS[self.wires[i]] #control bit
-            temp2 = MPS[self.wires[(i+1)%L]] #target bit
-            temp = (temp1.unsqueeze(1) @ temp2.unsqueeze(0) ).permute(2,3,0,1)
-            shape = temp.shape
-            #print(shape)
-            temp = temp.view(shape[0],shape[1],shape[2]*shape[3],1)
-            temp = cnot().matrix @ temp
-            temp = temp.view(shape[0],shape[1],shape[2],shape[3])
-            temp = temp.permute(2,3,0,1)
-            #融合后的张量恢复成两个张量
-            MPS[self.wires[i]],MPS[self.wires[(i+1)%L]] = TensorDecompAfterTwoQbitGate(temp)
+            MPS = cnot(self.nqubits,[i,i+1]).TN_operation(MPS)
+            # temp1 = MPS[self.wires[i]] #control bit
+            # temp2 = MPS[self.wires[(i+1)%L]] #target bit
+            # temp = (temp1.unsqueeze(1) @ temp2.unsqueeze(0) ).permute(2,3,0,1)
+            # shape = temp.shape
+            # #print(shape)
+            # temp = temp.view(shape[0],shape[1],shape[2]*shape[3],1)
+            # temp = cnot().matrix @ temp
+            # temp = temp.view(shape[0],shape[1],shape[2],shape[3])
+            # temp = temp.permute(2,3,0,1)
+            # #融合后的张量恢复成两个张量
+            # MPS[self.wires[i]],MPS[self.wires[(i+1)%L]] = TensorDecompAfterTwoQbitGate(temp)
         
         if self.nqubits == 2:
             return MPS
         #======================================================================
         for i in range(L-1):
-            temp1 = MPS[self.wires[i]] #control bit
-            temp2 = MPS[self.wires[(i+1)%L]] #target bit
+            # temp1 = MPS[self.wires[i]] #control bit
+            # temp2 = MPS[self.wires[(i+1)%L]] #target bit
             
-            temp = (temp1.unsqueeze(1) @ temp2.unsqueeze(0) ).permute(2,3,0,1)
-            shape = temp.shape
-            temp = temp.view(shape[0],shape[1],shape[2]*shape[3],1)
+            # temp = (temp1.unsqueeze(1) @ temp2.unsqueeze(0) ).permute(2,3,0,1)
+            # shape = temp.shape
+            # temp = temp.view(shape[0],shape[1],shape[2]*shape[3],1)
+            
             if i != L-2:
-                temp = SWAP().matrix @ temp
+                MPS = SWAP(self.nqubits,[i,i+1]).TN_operation(MPS)
+                #temp = SWAP().matrix @ temp
             else:
-                temp = cnot(2,[1,0]).U_expand() @ temp
-            temp = temp.view(shape[0],shape[1],shape[2],shape[3])
-            temp = temp.permute(2,3,0,1)
-            #融合后的张量恢复成两个张量
-            MPS[self.wires[i]],MPS[self.wires[(i+1)%L]] = TensorDecompAfterTwoQbitGate(temp)
+                MPS = cnot(self.nqubits,[i+1,i]).TN_operation(MPS)
+                #temp = cnot(2,[1,0]).U_expand() @ temp
+            # temp = temp.view(shape[0],shape[1],shape[2],shape[3])
+            # temp = temp.permute(2,3,0,1)
+            # #融合后的张量恢复成两个张量
+            # MPS[self.wires[i]],MPS[self.wires[(i+1)%L]] = TensorDecompAfterTwoQbitGate(temp)
         #======================================================================
         for i in range(L-3,-1,-1):
-            temp1 = MPS[self.wires[i]] #control bit
-            temp2 = MPS[self.wires[(i+1)%L]] #target bit
+            MPS = SWAP(self.nqubits,[i,i+1]).TN_operation(MPS)
+            # temp1 = MPS[self.wires[i]] #control bit
+            # temp2 = MPS[self.wires[(i+1)%L]] #target bit
             
-            temp = (temp1.unsqueeze(1) @ temp2.unsqueeze(0) ).permute(2,3,0,1)
-            shape = temp.shape
-            temp = temp.view(shape[0],shape[1],shape[2]*shape[3],1)
-            temp = SWAP().matrix @ temp
-            temp = temp.view(shape[0],shape[1],shape[2],shape[3])
-            temp = temp.permute(2,3,0,1)
-            #融合后的张量恢复成两个张量
-            MPS[self.wires[i]],MPS[self.wires[(i+1)%L]] = TensorDecompAfterTwoQbitGate(temp)
+            # temp = (temp1.unsqueeze(1) @ temp2.unsqueeze(0) ).permute(2,3,0,1)
+            # shape = temp.shape
+            # temp = temp.view(shape[0],shape[1],shape[2]*shape[3],1)
+            # temp = SWAP().matrix @ temp
+            # temp = temp.view(shape[0],shape[1],shape[2],shape[3])
+            # temp = temp.permute(2,3,0,1)
+            # #融合后的张量恢复成两个张量
+            # MPS[self.wires[i]],MPS[self.wires[(i+1)%L]] = TensorDecompAfterTwoQbitGate(temp)
         #======================================================================
         # sv = MPS2StateVec(MPS).view(-1,1)
         # sv = cnot(self.nqubits,[ self.wires[L-1],self.wires[0] ]).U_expand() @ sv
