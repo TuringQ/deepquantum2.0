@@ -7,6 +7,9 @@ from typing import List
 import deepquantum as dq
 import time
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
 def multi_kron(lst:List[torch.Tensor]):
     #为避免torchscript类型推断错误，需要特别指定输入数据类型
     rst = lst[0]
@@ -87,7 +90,7 @@ def IsHermitian(matrix):
     if (matrix.shape)[0] != (matrix.shape)[1]:  # 验证是否为方阵
         raise ValueError("not square matrix!")
 
-    n = matrix.shape[0] #行数
+    n = matrix.shape[0]  # 行数
     
     for i in range(n):
         for j in range(i,n,1):
@@ -145,7 +148,7 @@ def partial_trace_old(rho,N,trace_lst):
     for i in range(2):
         A = torch.kron( torch.kron(id1,id3[i]), id2 ) + 0j
         rho_nxt = rho_nxt + A @ rho @ dag(A)
-    new_lst = [ i-1 for i in trace_lst[1:] ]  #trace掉一个qubit，他后面的qubit索引号要减1
+    new_lst = [i-1 for i in trace_lst[1:]]  #trace掉一个qubit，他后面的qubit索引号要减1
     
     return partial_trace_old(rho_nxt,N-1,new_lst) + 0j
 
@@ -181,8 +184,8 @@ def partial_trace(rho, N, trace_lst):
     # M0 = torch.empty( 2**(N-1), 2**N ) + 0j
     # M1 = torch.empty( 2**(N-1), 2**N ) + 0j
     
-    M0 = rho.index_select( 0, torch.tensor(index_lst0) )
-    M1 = rho.index_select( 0, torch.tensor(index_lst1) )
+    M0 = rho.index_select( 0, torch.tensor(index_lst0).to(device) )
+    M1 = rho.index_select( 0, torch.tensor(index_lst1).to(device) )
     #for row in range(M0.shape[0]):  
         #M0[row] = rho[index_lst0[row]]
         #M1[row] = rho[index_lst1[row]]
@@ -190,8 +193,8 @@ def partial_trace(rho, N, trace_lst):
     # M00 = torch.empty( 2**(N-1), 2**(N-1) ) + 0j
     # M11 = torch.empty( 2**(N-1), 2**(N-1) ) + 0j
     
-    M00 = M0.index_select( 1, torch.tensor(index_lst0) )
-    M11 = M1.index_select( 1, torch.tensor(index_lst1) )
+    M00 = M0.index_select( 1, torch.tensor(index_lst0).to(device) )
+    M11 = M1.index_select( 1, torch.tensor(index_lst1).to(device) )
     # for i in range(M00.shape[1]):
     #     M00[:,i] = M0[:,index_lst0[i]]
     #     M11[:,i] = M1[:,index_lst1[i]]
@@ -224,11 +227,11 @@ def _Zmeasure(n_qubit:int, ith=None):
 
 def expval(state, M, rho=False):
     if not rho: #输入态为态矢，而非密度矩阵
-        state = state.view(-1, 1)
+        state = state.view(-1, 1).to(device)
         if len(state.shape) != 2: #state必须是二维张量，即便只有1个态矢也要view成(n,1)
             raise ValueError("state必须是二维张量,即便batch只有1个态矢也要view成(n,1)")
         else:   #state为batch_size个态矢，即二维张量
-            m1 = dag(state) @ M @ state
+            m1 = dag(state) @ M.to(device) @ state
             rst = torch.diag(m1).squeeze() #取对角元变成1维张量，在被view成2维张量
             rst = rst.real
             return rst

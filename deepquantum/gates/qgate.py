@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 class Circuit(object):
     def __init__(self, N):
         
@@ -37,9 +39,9 @@ class Circuit(object):
         """
         if len(x_list) == 0:
             raise ValueError("input x_list can not be empty")
-        x_k = torch.ones(1)
+        x_k = torch.ones(1).to(device)
         for x in x_list:
-            x_k = torch.kron(x_k, x)
+            x_k = torch.kron(x_k, x.to(device))
         return x_k
 
     def gate_expand_1toN(self, U, N, target):
@@ -53,7 +55,7 @@ class Circuit(object):
 
         if target >= N:
             raise ValueError("target must be integer < integer N")
-        lst1 = [torch.eye(2, 2)]*N
+        lst1 = [torch.eye(2, 2).to(device)]*N
         lst1[target] = U
         return self.multi_kron(lst1)
         #return self.multi_kron([torch.eye(2)] * target + [U] + [torch.eye(2)] * (N - target - 1))
@@ -79,6 +81,7 @@ class Circuit(object):
         """
 
         U_overall = torch.eye(2 ** self.n_qubits, 2 ** self.n_qubits) + 0j
+        U_overall = U_overall.to(device)
         for U in self.u:
             if left_to_right:
                 U_overall = U @ U_overall
@@ -101,8 +104,8 @@ class Circuit(object):
         one_one = torch.tensor([[0, 0], [0, 1]]) + 0j
         list1 = [torch.eye(2)] * N
         list2 = [torch.eye(2)] * N
-        list1[control] = zero_zero
-        list2[control] = one_one
+        list1[control] = zero_zero.to(device)
+        list2[control] = one_one.to(device)
         list2[target] = U
 
         return self.multi_kron(list1) + self.multi_kron(list2)
@@ -363,8 +366,8 @@ class Circuit(object):
         -------
         result : torch.tensor for operator describing the rotation.
         """
-        return torch.cat((torch.exp(-1j * phi / 2).unsqueeze(dim=0), torch.zeros(1),
-                          torch.zeros(1), torch.exp(1j * phi / 2).unsqueeze(dim=0)), dim=0).reshape(2, -1)
+        return torch.cat((torch.exp(-1j * phi / 2).to(device).unsqueeze(dim=0), torch.zeros(1).to(device),
+                          torch.zeros(1).to(device), torch.exp(1j * phi / 2).to(device).unsqueeze(dim=0)), dim=0).reshape(2, -1)
 
 
     def _x_gate(self):
