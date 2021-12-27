@@ -171,6 +171,9 @@ class Hadamard(SingleGateOperation):
         else:
             raise ValueError("Hadamard gate input error! cannot expand")
     
+    def operation_dagger(self):
+        return self
+    
     def info(self):
         #将门的信息整合后return，用来添加到circuit的gate_lst中
         info = {'label':self.label, 'contral_lst':[], 'target_lst':[self.wires],'params':None}
@@ -205,6 +208,9 @@ class PauliX(SingleGateOperation):
             return Operator.gate_expand_1toN(self.matrix, self.nqubits, self.wires)
         else:
             raise ValueError("PauliX gate input error! cannot expand")
+    
+    def operation_dagger(self):
+        return self
     
     def info(self):
         #将门的信息整合后return，用来添加到circuit的gate_lst中
@@ -241,6 +247,9 @@ class PauliY(SingleGateOperation):
         else:
             raise ValueError("PauliY gate input error! cannot expand")
     
+    def operation_dagger(self):
+        return self
+    
     def info(self):
         #将门的信息整合后return，用来添加到circuit的gate_lst中
         info = {'label':self.label, 'contral_lst':[], 'target_lst':[self.wires],'params':None}
@@ -274,6 +283,10 @@ class PauliZ(SingleGateOperation):
             return Operator.gate_expand_1toN(self.matrix, self.nqubits, self.wires)
         else:
             raise ValueError("PauliZ gate input error! cannot expand")
+    
+    def operation_dagger(self):
+        return self
+    
     
     def info(self):
         #将门的信息整合后return，用来添加到circuit的gate_lst中
@@ -313,6 +326,12 @@ class rx(SingleGateOperation):
             return Operator.gate_expand_1toN(self.matrix, self.nqubits, self.wires)
         else:
             raise ValueError("Rx gate input error! cannot expand")
+    
+    
+    def operation_dagger(self):
+        return rx(-1*self.params,self.nqubits,self.wires)
+    
+    
     
     def info(self):
         #将门的信息整合后return，用来添加到circuit的gate_lst中
@@ -358,6 +377,11 @@ class ry(SingleGateOperation):
         else:
             raise ValueError("Ry gate input error! cannot expand")
     
+    
+    def operation_dagger(self):
+        return ry(-1*self.params,self.nqubits,self.wires)
+    
+    
     def info(self):
         #将门的信息整合后return，用来添加到circuit的gate_lst中
         info = {'label':self.label, 'contral_lst':[], 'target_lst':[self.wires],'params':self.params}
@@ -402,6 +426,10 @@ class rz(SingleGateOperation):
         else:
             raise ValueError("Rz gate input error! cannot expand")
     
+    def operation_dagger(self):
+        return rz(-1*self.params,self.nqubits,self.wires)
+
+    
     def info(self):
         #将门的信息整合后return，用来添加到circuit的gate_lst中
         info = {'label':self.label, 'contral_lst':[], 'target_lst':[self.wires],'params':self.params}
@@ -444,6 +472,11 @@ class u1(SingleGateOperation):
             return Operator.gate_expand_1toN(self.matrix, self.nqubits, self.wires)
         else:
             raise ValueError("u1 gate input error! cannot expand")
+    
+    
+    def operation_dagger(self):
+        return u1(-1*self.params,self.nqubits,self.wires)
+
     
     def info(self):
         #将门的信息整合后return，用来添加到circuit的gate_lst中
@@ -497,6 +530,12 @@ class u3(SingleGateOperation):
             return Operator.gate_expand_1toN(self.matrix, self.nqubits, self.wires)
         else:
             raise ValueError("u3 gate input error! cannot expand")
+    
+    
+    def operation_dagger(self):
+        theta, phi, lambd = self.params[0],self.params[1],self.params[2]
+        return u3([-theta,-lambd,-phi],self.nqubits,self.wires)
+    
     
     def info(self):
         #将门的信息整合后return，用来添加到circuit的gate_lst中
@@ -562,6 +601,9 @@ class rxx(Operation):
         else:
             raise ValueError("Rxx gate input error! cannot expand")
     
+    def operation_dagger(self):
+        return rxx(-1*self.params, self.nqubits, self.wires)
+    
     def info(self):
         #将门的信息整合后return，用来添加到circuit的gate_lst中
         info = {'label':self.label, 'contral_lst':[], 'target_lst':list(self.wires),'params':self.params}
@@ -621,6 +663,10 @@ class ryy(Operation):
         else:
             raise ValueError("Ryy gate input error! cannot expand")
     
+    def operation_dagger(self):
+        return ryy(-1*self.params, self.nqubits, self.wires)
+    
+    
     def info(self):
         #将门的信息整合后return，用来添加到circuit的gate_lst中
         info = {'label':self.label, 'contral_lst':[], 'target_lst':list(self.wires),'params':self.params}
@@ -679,6 +725,9 @@ class rzz(Operation):
             return rst + 0j
         else:
             raise ValueError("Rzz gate input error! cannot expand")
+    
+    def operation_dagger(self):
+        return rzz(-1*self.params, self.nqubits, self.wires)
     
     def info(self):
         #将门的信息整合后return，用来添加到circuit的gate_lst中
@@ -788,6 +837,10 @@ class cnot(Operation):
                 MPS[i-1],MPS[i] = TensorDecompAfterTwoQbitGate(temp)      
         return MPS
     
+    
+    def operation_dagger(self):
+        return self
+
     def info(self):
         #将门的信息整合后return，用来添加到circuit的gate_lst中
         info = {'label':self.label, 'contral_lst':[self.wires[0]], 'target_lst':[self.wires[1]],'params':None}
@@ -866,6 +919,9 @@ class cz(Operation):
         return MPS
     
     
+    def operation_dagger(self):
+        return self
+    
     def info(self):
         #将门的信息整合后return，用来添加到circuit的gate_lst中
         info = {'label':self.label, 'contral_lst':[self.wires[0]], 'target_lst':[self.wires[1]],'params':None}
@@ -886,7 +942,7 @@ class cphase(Operation):
     # self_inverse = False
     
     def __init__(self, theta, N=-1, wires=-1):
-        #wires以list形式输入
+        #wires以list形式输入，包含控制比特和受控比特
         self.label = "cphase"
         self.num_params = 1
         self.num_wires = 2          
@@ -941,6 +997,9 @@ class cphase(Operation):
             MPS = SWAP(self.nqubits,[i-1,i]).TN_operation(MPS)
         
         return MPS
+    
+    def operation_dagger(self):
+        return cphase(-1*self.params,self.nqubits,self.wires)
     
     def info(self):
         #将门的信息整合后return，用来添加到circuit的gate_lst中
@@ -1024,6 +1083,10 @@ class cu3(Operation):
         
         return MPS
     
+    
+    def operation_dagger(self):
+        theta, phi, lambd = self.params[0],self.params[1],self.params[2]
+        return cu3([-theta,-lambd,-phi],self.nqubits,self.wires)
     
     def info(self):
         #将门的信息整合后return，用来添加到circuit的gate_lst中
@@ -1133,6 +1196,9 @@ class SWAP(Operation):
             temp = temp.permute(2,3,0,1)
             MPS[i-1],MPS[i] = TensorDecompAfterTwoQbitGate(temp)
         return MPS
+    
+    def operation_dagger(self):
+        return self
     
     def info(self):
         #将门的信息整合后return，用来添加到circuit的gate_lst中
@@ -1269,6 +1335,10 @@ class toffoli(Operation):
             # MPS[i],MPS[i+1] = TensorDecompAfterTwoQbitGate(temp)
         return MPS
     
+    
+    def operation_dagger(self):
+        return self
+    
     def info(self):
         #将门的信息整合后return，用来添加到circuit的gate_lst中
         info = {'label':self.label, 'contral_lst':self.control_lst, 'target_lst':self.target_lst,'params':None}
@@ -1311,6 +1381,9 @@ class multi_control_cnot(Operation):
             return Operation.multi_control_gate( sigma_x, self.nqubits, self.control_lst, self.target_lst[0] )
         else:
             raise ValueError(self.label+" input error! cannot expand")
+    
+    def operation_dagger(self):
+        return self
     
     def info(self):
         #将门的信息整合后return，用来添加到circuit的gate_lst中

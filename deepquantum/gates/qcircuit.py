@@ -24,8 +24,8 @@ class Circuit(object):
         self.nqubits = N  # 总QuBit的个数
         self.gate = []  # 顺序添加各类门
         #self._U = torch.tensor(1.0) + 0j     # 线路酉矩阵，初始为1
-        self.cir_params = {} #记录线路中所有门、层的参数
-        self.cir_num_params = 0
+        self.cir_params = {} #以字典的方式记录线路中所有门、层的参数
+        self.cir_num_params = 0 #记录线路中的参数总数
         
         
         
@@ -63,10 +63,13 @@ class Circuit(object):
     def TN_evolution(self,MPS:List[torch.Tensor])->List[torch.Tensor]:
         if len(MPS) != self.nqubits:
             raise ValueError('TN_evolution:MPS tensor list must have N elements!')
+        #MPS1 = copy.deepcopy(MPS)
         for idx,oper in enumerate(self.gate):
             #print(idx)
             if oper.supportTN == True:
                 MPS = oper.TN_operation(MPS)
+                # psi_mid = MPS2StateVec(MPS)
+                # print(idx,' : ',psi_mid.view(-1))
             else:
                 raise ValueError(str(oper.info()['label'])
                                  +'-TN_evolution:some part of circuit do not support Tensor Network')
@@ -229,6 +232,16 @@ class Circuit(object):
     
 
 
+
+
+
+
+
+
+
+
+
+
 class parameter_shift(object):
     '''
     线路中设计的门、层必须有更新参数的method：def params_update(self,theta_lst)
@@ -268,7 +281,7 @@ class parameter_shift(object):
                     e2 = self.cir.cir_expectation(self.init_state, self.M)
                     
                     p[i] = p[i] + 0.5*torch.pi
-                    self.cir.gate[idx].params_update(p) 
+                    self.cir.gate[idx].params_update(p)
                     #最后别忘了把参数恢复
                     grad_lst.append( 0.5*(e1 - e2) )
             else:
@@ -276,8 +289,124 @@ class parameter_shift(object):
                         
         assert len(grad_lst) == self.cir.cir_num_params
         return torch.tensor(grad_lst)
+    
+    def save_mid_MPS(self,M_oper):
+        '''
+        感觉这东西该和forward写到一块，不该写在这，或者说应该定义在circuit类下面
+        不然forward里算一遍，这里再算一遍，重复计算
+        '''
+        cir = self.cir
+        MPS = StateVec2MPS(self.init_state,cir.nqubits)
+        
+        save_dict = {} #用来储存中间态的列表
+        num_gates = len(cir.gate) #线路中共有多少个gate、layer
+        
+        if len(MPS) != cir.nqubits:
+            raise ValueError('save_mid_MPS error:MPS tensor list must have N elements!')
+        #正向演化，保存计算偏导数时需要的中间态（MPS形式）
+        for idx,oper in enumerate(cir.gate):
+            if oper.supportTN == True:
+                MPS = oper.TN_operation(MPS)
+                #如果这个gate or layer的下一个门操作含有参数，那么演化到此门为止的态就要保存
+                if idx != num_gates-1 and cir.gate[idx+1].num_params != 0:
+                    save_dict[idx] = copy.deepcopy(MPS)
+            else:
+                raise ValueError(str(oper.info()['label'])
+                                 +'-TN_evolution:some part of circuit do not support Tensor Network')
+        sv_f = MPS2StateVec(MPS)
+        #此时正向演化完毕，MPS处于正向演化的末态，即将开始反向演化
+        #我们首先把被测力学量作用在末态上，准备开始反向演化
+        #如果M_oper只满足厄米，不满足幺正，那么就没有TN_operation给你用了，要自己写M_oper对MPS的作用
+        MPS = M_oper.TN_operation(MPS)
+        #暂时只支持单比特PauliX、PauliY、PauliZ这些简单情况
+        if cir.gate[num_gates-1].num_params != 0:
+            save_dict[num_gates-1] = copy.deepcopy(MPS)
+            
+        
+        
+        for idx in range(num_gates-1,-1,-1):
+            #oper = cir.gate[idx]
+            oper = cir.gate[idx].operation_dagger() #构造U_dagger操作
+            if oper.supportTN == True:
+                MPS = oper.TN_operation(MPS)
+                #如果这个gate or layer的下一个门操作含有参数，那么演化到此门为止的态就要保存
+                if idx != 0 and cir.gate[idx-1].num_params != 0:
+                    save_dict[2*num_gates-idx-1] = copy.deepcopy(MPS)
+                    
+            else:
+                raise ValueError(str(oper.info()['label'])
+                                 +'-TN_evolution:some part of circuit do not support Tensor Network')
+        #此时双向演化完毕
+        # print('------------------------------')
+        # for k in save_dict:
+        #     print(k,'  ',MPS2StateVec(save_dict[k]))
+        # print('------------------------------')
+        return save_dict,sv_f
                 
+    
+    
+    def cal_params_grad2(self,save_dict):
+        grad_lst = []
+        num_gates = len(self.cir.gate)
+        
+        init_MPS = StateVec2MPS(self.init_state, self.cir.nqubits)
+        for idx,gate in enumerate( self.cir.gate ):
+            #遍历线路中的每个gate、layer
+            if gate.num_params == 0:
+                #首先判断该gate是否有参数，没参数直接跳过
+                continue
                 
+            p = copy.deepcopy( self.cir.cir_params[idx] )
+            if len(p.shape) == 0:
+                #只有单个参数
+                p = p - torch.pi
+                self.cir.gate[idx].params_update(p)
+                
+                if idx == 0:
+                    MPS = copy.deepcopy( init_MPS )
+                    MPS = gate.TN_operation( MPS )
+                else:
+                    MPS = copy.deepcopy( save_dict[idx-1] )
+                    MPS = gate.TN_operation( MPS )
+                
+                psi1 = MPS2StateVec( MPS )
+                psi2 = MPS2StateVec( save_dict[2*num_gates-idx-2] )
+                temp = ( psi2.conj() @ psi1.view(-1,1) ).squeeze()
+                temp = -1.0*temp.real
+                
+                p = p + torch.pi
+                self.cir.gate[idx].params_update(p)
+                
+                grad_lst.append(temp)
+                
+            elif len(p.shape) == 1:
+                #参数是个一维张量
+                for i,each_p in enumerate(p):
+                    
+                    p[i] = p[i] - torch.pi
+                    self.cir.gate[idx].params_update(p)
+                    #注意TN_operation是会改变输入(MPS)本身的，所以要用deepcopy
+                    if idx == 0:
+                        MPS = copy.deepcopy( init_MPS )
+                        MPS = gate.TN_operation( MPS )
+                    else:
+                        MPS = copy.deepcopy( save_dict[idx-1] )
+                        MPS = gate.TN_operation( MPS ) #后面需要-1j修正
+                    psi1 = MPS2StateVec( MPS )
+                    psi2 = MPS2StateVec( save_dict[2*num_gates-idx-2] )
+                    temp = ( psi2.conj() @ psi1.view(-1,1) ).squeeze() 
+                    temp = -1.0*temp.real
+                    #本来取虚部变成取负实部，相当于修正了-1j
+                    p[i] = p[i] + torch.pi
+                    self.cir.gate[idx].params_update(p)
+                    #最后别忘了把参数恢复
+                    
+                    grad_lst.append( temp )
+            else:
+                raise ValueError('cal_params_grad: error about params shape')
+                        
+        assert len(grad_lst) == self.cir.cir_num_params
+        return torch.tensor(grad_lst)
         
 
 

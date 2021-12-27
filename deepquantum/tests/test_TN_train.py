@@ -57,6 +57,40 @@ NOTE:
 backward的返回值必须乘上grad_output，因为backward主体计算的是forward输出对于输入的导数，根据链
 式法则，乘上grad_output之后，才表示loss相对输入的导数。
 '''
+# class HybridFunction(torch.autograd.Function):
+#     '''
+#     参考：
+#     https://blog.csdn.net/winycg/article/details/104410525
+#     https://zhuanlan.zhihu.com/p/27783097
+#     https://qiskit.org/textbook/ch-machine-learning/machine-learning-qiskit-pytorch.html
+#     '''
+#     @staticmethod
+#     def forward(ctx, params_lst, N,input_state, M):
+#         c1 = Circuit(N)
+#         wires_lst = list(range(N))
+#         for i in range(N):
+#             c1.rx(params_lst[i], i)
+#         c1.YZYLayer(wires_lst, params_lst[1*N:4*N])
+#         c1.ring_of_cnot(wires_lst)
+#         c1.YZYLayer(wires_lst, params_lst[4*N:7*N])
+        
+#         ctx.circuit = c1
+#         ctx.save_for_backward(input_state, M)
+#         result = c1.cir_expectation(input_state, M)
+#         return result
+    
+#     @staticmethod
+#     def backward(ctx,grad_output):
+#         input_state, M = ctx.saved_tensors
+#         ps = parameter_shift(ctx.circuit, input_state, M)
+#         #save_dict = ps.save_mid_MPS(op.PauliZ(ctx.circuit.nqubits,0))
+#         grad = ps.cal_params_grad()
+#         #grad = ctx.ps.cal_params_grad2(ctx.save_dict)
+#         # print('old: ',grad1)
+#         # print('new: ',grad)
+#         return grad * grad_output,None,None,None
+
+
 class HybridFunction(torch.autograd.Function):
     '''
     参考：
@@ -66,33 +100,36 @@ class HybridFunction(torch.autograd.Function):
     '''
     @staticmethod
     def forward(ctx, params_lst, N,input_state, M):
-        #print('myforward')
         c1 = Circuit(N)
         wires_lst = list(range(N))
-        c1.YZYLayer(wires_lst, params_lst[0*N:3*N])
+        for i in range(N):
+            c1.rx(params_lst[i], i)
+        c1.YZYLayer(wires_lst, params_lst[1*N:4*N])
         c1.ring_of_cnot(wires_lst)
-        c1.YZYLayer(wires_lst, params_lst[3*N:6*N])
+        c1.YZYLayer(wires_lst, params_lst[4*N:7*N])
+        c1.cphase(params_lst[7*N], [1,0])
         # c1.ring_of_cnot(wires_lst)
         # c1.YZYLayer(wires_lst, params_lst[6*N:9*N])
         # c1.ring_of_cnot(wires_lst)
         # c1.YZYLayer(wires_lst, params_lst[9*N:12*N])
         #print('params_lst: ',params_lst.requires_grad)
-        ctx.circuit = c1
-        ctx.save_for_backward(input_state, M)
+        #ctx.circuit = c1
+        #ctx.save_for_backward(input_state, M)
         
-        result = c1.cir_expectation(input_state, M)
-        #print('result: ',result.requires_grad)
-        
+        ps = parameter_shift(c1, input_state, M)
+        save_dict,sv_f = ps.save_mid_MPS(op.PauliZ(c1.nqubits,0))
+        ctx.save_dict = save_dict
+        ctx.ps = ps
+        result = sv_f.view(1,-1).conj() @ M @ sv_f.view(-1,1)
+        result = result.real
+        #result = c1.cir_expectation(input_state, M)
         return result
     
     @staticmethod
     def backward(ctx,grad_output):
-        #print('okok')
-        #print(grad_output)
-        input_state, M = ctx.saved_tensors
-        ps = parameter_shift(ctx.circuit, input_state, M)
-        grad = ps.cal_params_grad()
-        #print('mybackward',grad)
+        grad = ctx.ps.cal_params_grad2(ctx.save_dict)
+        # print('old: ',grad1)
+        # print('new: ',grad)
         return grad * grad_output,None,None,None
 
 
@@ -104,7 +141,7 @@ class qcir(torch.jit.ScriptModule):
         #属性：量子线路qubit数目，随机初始化的线路参数，测量力学量列表
         self.nqubits = nqubits
         self.weight = \
-            nn.Parameter( nn.init.uniform_(torch.empty(6*self.nqubits), a=0.0, b=2*torch.pi) )
+            nn.Parameter( nn.init.uniform_(torch.empty(7*self.nqubits+1), a=0.0, b=2*torch.pi) )
         
         self.M_lst = self.Zmeasure()
 
@@ -135,19 +172,18 @@ class qcir(torch.jit.ScriptModule):
         #encoding编码部分
         MPS_batch = []
         for i in range(len(input_lst_batch)):
-            # print(MPS_batch)
-            # print(i)
             PE = PauliEncoding(self.nqubits, input_lst_batch[i], wires_lst)
             #print('PE: ',id(PE))
-            MPS_f = PE.TN_operation(MPS)
+            MPS_f = PE.TN_operation(copy.deepcopy(MPS))
+            
             '''
             子诶调用父类的method：TN_operation返回值赋值后MPS_f地址一直一样
             导致直接append(MPS_f)会导致MPS_batch内部所有元素都链接到一个地址上
-            从而全部被覆盖，所以必须用copy.copy()
+            从而全部被覆盖，所以必须用copy.deepcopy()
             '''
             #print("MPS_f",id(MPS_f))
             # print(MPS_f)
-            MPS_batch.append( copy.copy(MPS_f) )
+            MPS_batch.append(MPS_f)
             #MPS_batch.append( MPS_f )
             #MPS_batch[i] = copy.copy(MPS_f)
             #print("MPS_batch",id(MPS_batch[i]))
@@ -157,7 +193,7 @@ class qcir(torch.jit.ScriptModule):
         #print('================================================================')
         # ======================================================================
         for i in range(len(MPS_batch)):
-            MPS_batch[i] = c1.TN_evolution(MPS_batch[i])
+            #MPS_batch[i] = c1.TN_evolution(MPS_batch[i])
             psi_i = MPS2StateVec(MPS_batch[i])
             
             # rst_lst = []
@@ -271,7 +307,7 @@ def foo(x1):
 
 if __name__ == "__main__":
     
-    N = 2
+    N = 3
     num_examples = 256
     num_inputs = 1
     num_outputs = 1
@@ -312,8 +348,8 @@ if __name__ == "__main__":
     optimizer = optim.Adam(net1.parameters(), lr=0.01) #lr为学习率
     lr_scheduler = optim.lr_scheduler.MultiStepLR(optimizer,milestones=[50,100], gamma=0.1)
     
-    num_epochs = 5;
-    batch_size = 1;
+    num_epochs = 15;
+    batch_size = 2;
     
     #记录loss随着epoch的变化，用于后续绘图
     epoch_lst = [i+1 for i in range(num_epochs)]
@@ -357,7 +393,7 @@ if __name__ == "__main__":
         
     
     
-    
+    print('开始绘图：')
     plt.cla()
     plt.subplot(121)
     xx = list(features[:num_examples,0])
