@@ -50,7 +50,7 @@ class Circuit(object):
     def U(self, left_to_right=True,cuda=False):
         
         U_overall = torch.eye(2 ** self.nqubits, 2 ** self.nqubits) + 0j
-        for i, each_oper in enumerate( self.gate ):
+        for i,each_oper in enumerate( self.gate ):
             u_matrix = each_oper.U_expand()        
             if left_to_right:
                 U_overall = u_matrix @ U_overall
@@ -60,10 +60,10 @@ class Circuit(object):
        
         return U_overall
     
-    def TN_evolution(self, MPS:List[torch.Tensor])->List[torch.Tensor]:
+    def TN_evolution(self,MPS:List[torch.Tensor])->List[torch.Tensor]:
         if len(MPS) != self.nqubits:
             raise ValueError('TN_evolution:MPS tensor list must have N elements!')
-        for idx, oper in enumerate(self.gate):
+        for idx,oper in enumerate(self.gate):
             #print(idx)
             if oper.supportTN == True:
                 MPS = oper.TN_operation(MPS)
