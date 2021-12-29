@@ -8,6 +8,7 @@ import torch
 from deepquantum.gates.qmath import  IsUnitary, IsHermitian, multi_kron
 from deepquantum.gates.qtensornetwork import TensorDecompAfterTwoQbitGate, TensorDecompAfterThreeQbitGate
 from typing import List
+import copy
 
 class Operator(object):
     
@@ -163,6 +164,7 @@ class Hadamard(SingleGateOperation):
         self.wires = wires
         self.matrix = torch.sqrt( torch.tensor(0.5) ) * torch.tensor([[1,1],[1,-1]]) + 0j
         self.supportTN = True
+        self.diagonal = False
         #self.U = self.U_expand()
     
     def U_expand(self):
@@ -201,6 +203,7 @@ class PauliX(SingleGateOperation):
         self.wires = wires
         self.matrix = torch.tensor([[0,1],[1,0]]) + 0j
         self.supportTN = True
+        self.diagonal = False
         #self.U = self.U_expand()
     
     def U_expand(self):
@@ -238,6 +241,7 @@ class PauliY(SingleGateOperation):
         self.wires = wires
         self.matrix = torch.tensor([[0j,-1j],[1j,0j]])
         self.supportTN = True
+        self.diagonal = False
         #self.U = self.U_expand()
     
     def U_expand(self):
@@ -276,6 +280,7 @@ class PauliZ(SingleGateOperation):
         self.wires = wires
         self.matrix = torch.tensor([[1,0],[0,-1]]) + 0j
         self.supportTN = True
+        self.diagonal = True
         #self.U = self.U_expand()
     
     def U_expand(self):
@@ -319,6 +324,7 @@ class rx(SingleGateOperation):
         self.matrix = torch.cos(theta/2.0)*torch.eye(2,2) \
             - 1j*torch.sin(theta/2.0)*PauliX().matrix + 0j
         self.supportTN = True
+        self.diagonal = False
         #self.U = self.U_expand()
     
     def U_expand(self):
@@ -369,6 +375,7 @@ class ry(SingleGateOperation):
         self.matrix = torch.cos(theta/2.0)*torch.eye(2,2) \
             - 1j*torch.sin(theta/2.0)*PauliY().matrix + 0j
         self.supportTN = True
+        self.diagonal = False
         #self.U = self.U_expand()
     
     def U_expand(self):
@@ -418,6 +425,7 @@ class rz(SingleGateOperation):
         self.matrix = torch.cos(theta/2.0)*torch.eye(2,2) \
             - 1j*torch.sin(theta/2.0)*PauliZ().matrix + 0j
         self.supportTN = True
+        self.diagonal = True
         #self.U = self.U_expand()
     
     def U_expand(self):
@@ -466,7 +474,8 @@ class u1(SingleGateOperation):
         self.matrix = torch.tensor([[1,0],[0,exp_itheta]]) + 0j
         
         self.supportTN = True
-    
+        self.diagonal = True
+        
     def U_expand(self):
         if self.nqubits != -1 and self.wires != -1:
             return Operator.gate_expand_1toN(self.matrix, self.nqubits, self.wires)
@@ -524,6 +533,7 @@ class u3(SingleGateOperation):
             @ rz(lambd).matrix
         
         self.supportTN = True
+        self.diagonal = False
     
     def U_expand(self):
         if self.nqubits != -1 and self.wires != -1:
@@ -582,6 +592,7 @@ class rxx(Operation):
         self.matrix = torch.cos(theta/2.0)*torch.eye(4,4) \
             - 1j*torch.sin(theta/2.0)*torch.kron(PauliX().matrix,PauliX().matrix) + 0j
         self.supportTN = False
+        self.diagonal = False
         #self.U = self.U_expand()
     
     def U_expand(self):
@@ -644,6 +655,7 @@ class ryy(Operation):
         self.matrix = torch.cos(theta/2.0)*torch.eye(4,4) \
             - 1j*torch.sin(theta/2.0)*torch.kron(PauliY().matrix,PauliY().matrix) + 0j
         self.supportTN = False
+        self.diagonal = False
         #self.U = self.U_expand()
     
     def U_expand(self):
@@ -707,6 +719,7 @@ class rzz(Operation):
         self.matrix = torch.cos(theta/2.0)*torch.eye(4,4) \
             - 1j*torch.sin(theta/2.0)*torch.kron(PauliZ().matrix,PauliZ().matrix) + 0j
         self.supportTN = False
+        self.diagonal = True
         #self.U = self.U_expand()
     
     def U_expand(self):
@@ -769,6 +782,7 @@ class cnot(Operation):
                                    [0,0,0,1],\
                                    [0,0,1,0]]) + 0j
         self.supportTN = True
+        self.diagonal = False
         #self.U = self.U_expand()
     
     def U_expand(self):
@@ -802,17 +816,29 @@ class cnot(Operation):
             temp = temp.permute(2,3,0,1)
             #融合后的张量恢复成两个张量
             MPS[upqbit],MPS[downqbit] = TensorDecompAfterTwoQbitGate(temp)
+            
+            # temp = MPS[upqbit].unsqueeze(1) @ MPS[downqbit].unsqueeze(0)
+            # if self.wires[0] == upqbit:
+            #     t = copy.deepcopy( temp[1,0,:,:] )
+            #     temp[1,0,:,:] = temp[1,1,:,:]
+            #     temp[1,1,:,:] = t
+            # else:
+            #     t = copy.deepcopy( temp[0,1,:,:] )
+            #     temp[0,1,:,:] = temp[1,1,:,:]
+            #     temp[1,1,:,:] = t
+            # MPS[upqbit],MPS[downqbit] = TensorDecompAfterTwoQbitGate(temp)
         else:
             #当cnot门横跨多个量子比特时，需要用SWAP将控制、目标比特搬运至最近邻
             for i in range(upqbit,downqbit-1):
-                temp = (MPS[i].unsqueeze(1) @ MPS[i+1].unsqueeze(0) ).permute(2,3,0,1)
-                shape = temp.shape
-                temp = temp.view(shape[0],shape[1],shape[2]*shape[3],1)
-                temp = SWAP().matrix @ temp
-                temp = temp.view(shape[0],shape[1],shape[2],shape[3])
-                temp = temp.permute(2,3,0,1)
-                #融合后的张量恢复成两个张量
-                MPS[i],MPS[i+1] = TensorDecompAfterTwoQbitGate(temp)
+                # temp = (MPS[i].unsqueeze(1) @ MPS[i+1].unsqueeze(0) ).permute(2,3,0,1)
+                # shape = temp.shape
+                # temp = temp.view(shape[0],shape[1],shape[2]*shape[3],1)
+                # temp = SWAP().matrix @ temp
+                # temp = temp.view(shape[0],shape[1],shape[2],shape[3])
+                # temp = temp.permute(2,3,0,1)
+                # #融合后的张量恢复成两个张量
+                # MPS[i],MPS[i+1] = TensorDecompAfterTwoQbitGate(temp)
+                MPS = SWAP(self.nqubits,[i,i+1]).TN_operation(MPS)
             
             temp = (MPS[downqbit-1].unsqueeze(1) @ MPS[downqbit].unsqueeze(0) ).permute(2,3,0,1)
             shape = temp.shape
@@ -825,16 +851,28 @@ class cnot(Operation):
             temp = temp.permute(2,3,0,1)
             #融合后的张量恢复成两个张量
             MPS[downqbit-1],MPS[downqbit] = TensorDecompAfterTwoQbitGate(temp)
+            # temp = MPS[downqbit-1].unsqueeze(1) @ MPS[downqbit].unsqueeze(0)
+            # if self.wires[0] == upqbit:
+            #     t = copy.deepcopy( temp[1,0,:,:] )
+            #     temp[1,0,:,:] = temp[1,1,:,:]
+            #     temp[1,1,:,:] = t
+            # else:
+            #     t = copy.deepcopy( temp[0,1,:,:] )
+            #     temp[0,1,:,:] = temp[1,1,:,:]
+            #     temp[1,1,:,:] = t
+            # MPS[downqbit-1],MPS[downqbit] = TensorDecompAfterTwoQbitGate(temp)
+            
             
             for i in range(downqbit-1,upqbit,-1):
-                temp = (MPS[i-1].unsqueeze(1) @ MPS[i].unsqueeze(0) ).permute(2,3,0,1)
-                shape = temp.shape
-                temp = temp.view(shape[0],shape[1],shape[2]*shape[3],1)
-                temp = SWAP().matrix @ temp
-                temp = temp.view(shape[0],shape[1],shape[2],shape[3])
-                temp = temp.permute(2,3,0,1)
-                #融合后的张量恢复成两个张量
-                MPS[i-1],MPS[i] = TensorDecompAfterTwoQbitGate(temp)      
+                # temp = (MPS[i-1].unsqueeze(1) @ MPS[i].unsqueeze(0) ).permute(2,3,0,1)
+                # shape = temp.shape
+                # temp = temp.view(shape[0],shape[1],shape[2]*shape[3],1)
+                # temp = SWAP().matrix @ temp
+                # temp = temp.view(shape[0],shape[1],shape[2],shape[3])
+                # temp = temp.permute(2,3,0,1)
+                # #融合后的张量恢复成两个张量
+                # MPS[i-1],MPS[i] = TensorDecompAfterTwoQbitGate(temp)  
+                MPS = SWAP(self.nqubits,[i-1,i]).TN_operation(MPS)
         return MPS
     
     
@@ -878,6 +916,7 @@ class cz(Operation):
                                    [0,0,1,0],\
                                    [0,0,0,-1]]) + 0j
         self.supportTN = True
+        self.diagonal = True
         #self.U = self.U_expand()
     
     def U_expand(self):
@@ -958,6 +997,7 @@ class cphase(Operation):
                                     [0,0,1,0],\
                                     [0,0,0,exp_itheta]]) + 0j
         self.supportTN = True
+        self.diagonal = True
     
     def U_expand(self):
         if self.nqubits != -1 and self.wires != -1:
@@ -1045,6 +1085,7 @@ class cu3(Operation):
         self.matrix = Operation.two_qubit_control_gate( self.u_matrix, 2, 0, 1 )
         
         self.supportTN = True
+        self.diagonal = False
     
     def U_expand(self):
         if self.nqubits != -1 and self.wires != -1:
@@ -1139,6 +1180,7 @@ class SWAP(Operation):
                                    [0,1,0,0],\
                                    [0,0,0,1]]) + 0j
         self.supportTN = True
+        self.diagonal = False
     
     def U_expand(self):
         if self.nqubits != -1 and self.wires != -1:
@@ -1188,6 +1230,12 @@ class SWAP(Operation):
             temp = (self.matrix @ temp).view(s[0],s[1],s[2],s[3])
             temp = temp.permute(2,3,0,1)
             MPS[i],MPS[i+1] = TensorDecompAfterTwoQbitGate(temp)
+            
+            # temp = (MPS[i].unsqueeze(1) @ MPS[i+1].unsqueeze(0) )
+            # t = copy.deepcopy( temp[0,1,:,:] )
+            # temp[0,1,:,:] = temp[1,0,:,:]
+            # temp[1,0,:,:] = t
+            # MPS[i],MPS[i+1] = TensorDecompAfterTwoQbitGate(temp)
         for i in range(downqbit-1,upqbit,-1):
             temp = (MPS[i-1].unsqueeze(1) @ MPS[i].unsqueeze(0) ).permute(2,3,0,1)
             s = temp.shape
@@ -1195,6 +1243,12 @@ class SWAP(Operation):
             temp = (self.matrix @ temp).view(s[0],s[1],s[2],s[3])
             temp = temp.permute(2,3,0,1)
             MPS[i-1],MPS[i] = TensorDecompAfterTwoQbitGate(temp)
+            
+            # temp = MPS[i-1].unsqueeze(1) @ MPS[i].unsqueeze(0)
+            # t = copy.deepcopy( temp[0,1,:,:] )
+            # temp[0,1,:,:] = temp[1,0,:,:]
+            # temp[1,0,:,:] = t
+            # MPS[i-1],MPS[i] = TensorDecompAfterTwoQbitGate(temp)
         return MPS
     
     def operation_dagger(self):
@@ -1252,6 +1306,7 @@ class toffoli(Operation):
                                    [0,0,0,0,0,0,0,1],\
                                    [0,0,0,0,0,0,1,0]]) + 0j
         self.supportTN = True
+        self.diagonal = False
         #self.U = self.U_expand()
     
     def U_expand(self):
@@ -1373,6 +1428,7 @@ class multi_control_cnot(Operation):
         self.control_lst =  list(wires[0:len(wires)-1]) 
         self.target_lst = [ wires[-1] ]
         self.supportTN = False
+        self.diagonal = False
         #self.U = self.U_expand()
     
     def U_expand(self):

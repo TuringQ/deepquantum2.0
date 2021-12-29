@@ -337,10 +337,10 @@ if __name__ == "__main__":
     net1 = qnet(N)      #构建训练模型
     loss = nn.MSELoss() #平方损失函数
     
-    # print('start producing torchscript file')
-    # scripted_modeule = torch.jit.script(qnet(4))
-    # torch.jit.save(scripted_modeule, 'test_torchscript.pt')
-    # print('completed!')
+    print('start producing torchscript file')
+    scripted_modeule = torch.jit.script(qnet(N))
+    torch.jit.save(scripted_modeule, 'test_torchscript.pt')
+    print('completed!')
     
     
     #定义优化器，也就是选择优化器，选择Adam梯度下降，还是随机梯度下降，或者其他什么

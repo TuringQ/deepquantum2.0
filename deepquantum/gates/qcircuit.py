@@ -251,6 +251,8 @@ class parameter_shift(object):
         self.init_state = psi_init
         self.M = M
     
+    
+    
     def cal_params_grad(self):
         grad_lst = []
         for idx,gate in enumerate( self.cir.gate ):
@@ -289,6 +291,8 @@ class parameter_shift(object):
                         
         assert len(grad_lst) == self.cir.cir_num_params
         return torch.tensor(grad_lst)
+    
+    
     
     def save_mid_MPS(self,M_oper):
         '''
@@ -410,6 +414,50 @@ class parameter_shift(object):
         
 
 
+# class circuit_analysis(object):
+#     def __init__(self,circuit):
+#         self.circuit = circuit
+    
+#     # def print_info(self):
+#     #     print("线路量子比特数：",self.circuit.nqubits)
+#     #     print("线路门&层数：",len(self.gate))
+#     #     print("线路参数总数：",self.cir_num_params)
+    
+#     # def circuit_fusion(self):
+#     #     cir = self.circuit
+#     #     for oper in cir.gate:
+#     #         pass
+    
+#     def _commuta_dict(self):
+#         '''
+#         返回一个字典，判断每个operation是否与后方的operation对易
+#         '''
+#         c = self.circuit
+#         commuta_dict = {}
+#         for idx,oper in enumerate(c.gate):
+#             commuta_dict[idx] = False
+#         for idx,oper in enumerate(c.gate):
+#             if idx != len(c.gate)-1:
+#                 if self._commutative( oper,c.gate[idx+1] ):
+#                     commuta_dict[idx] = True
+#         return commuta_dict
+    
+#     def _commutative(self,oper1,oper2):
+#         '''
+#         对于作用在不同wires上的操作，一定对易；
+#         对于layer，不和任何其他操作对易；
+#         对于门，label一样的，一定对易；
+#         对于对角的矩阵操作，一定对易；
+#         '''
+#         return False
+                    
+                
+            
+                
+            
+            
+
+
 
 
 if __name__ == '__main__':
@@ -447,6 +495,9 @@ if __name__ == '__main__':
     ps = parameter_shift(cir, cir.state_init().view(1,-1), M)
     grad = ps.cal_params_grad()
     print(grad)
+    # ca = circuit_analysis(cir)
+    # x = ca._commuta_dict()
+    # print(x)
     input('qcircuit.py END')
         
         

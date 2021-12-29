@@ -13,7 +13,14 @@ import time
 from typing import List
 import copy
 #import multiprocessing as mp
-
+'''
+所有layer必须有label标签，nqubits比特数，wires涉及哪几个比特，num_params参数数目，是否支持张量网络
+self.label = "HadamardLayer"
+self.nqubits = N
+self.wires = wires
+self.num_params = 0
+self.supportTN = True
+'''
 class SingleGateLayer(Operation):
     '''
     单比特层的父类
