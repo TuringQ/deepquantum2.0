@@ -11,8 +11,16 @@ from deepquantum.gates.qoperator import Hadamard,rx,ry,rz,rxx,ryy,rzz,cnot,cz,SW
 from deepquantum.gates.qtensornetwork import StateVec2MPS,MPS2StateVec,TensorDecompAfterTwoQbitGate
 import time
 from typing import List
+import copy
 #import multiprocessing as mp
-
+'''
+所有layer必须有label标签，nqubits比特数，wires涉及哪几个比特，num_params参数数目，是否支持张量网络
+self.label = "HadamardLayer"
+self.nqubits = N
+self.wires = wires
+self.num_params = 0
+self.supportTN = True
+'''
 class SingleGateLayer(Operation):
     '''
     单比特层的父类
@@ -93,6 +101,9 @@ class XYZLayer(SingleGateLayer):
         
         self.nqubits = N
         self.wires = wires
+        #如果是列表，先转成tensor
+        if type(params_lst) == type([1]):
+            params_lst = torch.tensor(params_lst)
         self.params = params_lst
         self.num_params = len(params_lst)
         self.supportTN = True
@@ -112,7 +123,13 @@ class XYZLayer(SingleGateLayer):
         lst1 = self._cal_single_gates()
         return multi_kron(lst1) + 0j
     
-    
+    def operation_dagger(self):
+        params_tensor = -1*self.params
+        for i in range(len(self.wires)):
+            temp = copy.deepcopy( params_tensor[3*i+0] )
+            params_tensor[3*i+0] = params_tensor[3*i+2]
+            params_tensor[3*i+2] = temp
+        return ZYXLayer(self.nqubits,self.wires,params_tensor)
         
     def info(self):
         info = {'label':self.label, 'contral_lst':[], 'target_lst':self.wires,'params':self.params}
@@ -123,7 +140,55 @@ class XYZLayer(SingleGateLayer):
         self.num_params = len(params_lst)
     
 
-
+class ZYXLayer(SingleGateLayer):
+    #label = "ZYXLayer"
+    
+    def __init__(self,N,wires,params_lst):
+        if 3*len(wires) != len(params_lst):
+            raise ValueError("ZYXLayer: number of parameters not match")
+        if len(wires) > N:
+            raise ValueError("ZYXLayer: number of wires must less than N")
+        self.label = "ZYXLayer"
+        
+        self.nqubits = N
+        self.wires = wires
+        #如果是列表，先转成tensor
+        if type(params_lst) == type([1]):
+            params_lst = torch.tensor(params_lst)
+        self.params = params_lst
+        self.num_params = len(params_lst)
+        self.supportTN = True
+    
+    def _cal_single_gates(self):
+        lst1 = [torch.eye(2,2)]*self.nqubits
+        for i,qbit in enumerate( self.wires ):
+            
+            zm = rz(self.params[3*i+0]).matrix
+            ym = ry(self.params[3*i+1]).matrix
+            xm = rx(self.params[3*i+2]).matrix
+            
+            lst1[qbit] = xm @ ym @ zm
+        return lst1
+    
+    def U_expand(self):
+        lst1 = self._cal_single_gates()
+        return multi_kron(lst1) + 0j
+    
+    def operation_dagger(self):
+        params_tensor = -1*self.params
+        for i in range(len(self.wires)):
+            temp = copy.deepcopy( params_tensor[3*i+0] )
+            params_tensor[3*i+0] = params_tensor[3*i+2]
+            params_tensor[3*i+2] = temp
+        return XYZLayer(self.nqubits,self.wires,params_tensor)
+        
+    def info(self):
+        info = {'label':self.label, 'contral_lst':[], 'target_lst':self.wires,'params':self.params}
+        return info
+    
+    def params_update(self,params_lst):
+        self.params = params_lst
+        self.num_params = len(params_lst)
 
 
 
@@ -141,6 +206,9 @@ class YZYLayer(SingleGateLayer):
         
         self.nqubits = N
         self.wires = wires
+        #如果是列表，先转成tensor
+        if type(params_lst) == type([1]):
+            params_lst = torch.tensor(params_lst)
         self.params = params_lst
         self.num_params = len(params_lst)
         self.supportTN = True
@@ -161,7 +229,13 @@ class YZYLayer(SingleGateLayer):
         lst1 = self._cal_single_gates()
         return multi_kron(lst1) + 0j
     
-    
+    def operation_dagger(self):
+        params_tensor = -self.params
+        for i in range(len(self.wires)):
+            temp = copy.deepcopy( params_tensor[3*i+0] )
+            params_tensor[3*i+0] = params_tensor[3*i+2]
+            params_tensor[3*i+2] = temp
+        return YZYLayer(self.nqubits,self.wires,params_tensor)
     
     def info(self):
         info = {'label':self.label, 'contral_lst':[], 'target_lst':self.wires,'params':self.params}
@@ -192,6 +266,9 @@ class XZXLayer(SingleGateLayer):
         
         self.nqubits = N
         self.wires = wires
+        #如果是列表，先转成tensor
+        if type(params_lst) == type([1]):
+            params_lst = torch.tensor(params_lst)
         self.params = params_lst
         self.num_params = len(params_lst)
         self.supportTN = True
@@ -211,6 +288,13 @@ class XZXLayer(SingleGateLayer):
         lst1 = self._cal_single_gates()
         return multi_kron(lst1) + 0j
       
+    def operation_dagger(self):
+        params_tensor = -1*self.params
+        for i in range(len(self.wires)):
+            temp = copy.deepcopy( params_tensor[3*i+0] )
+            params_tensor[3*i+0] = params_tensor[3*i+2]
+            params_tensor[3*i+2] = temp
+        return XZXLayer(self.nqubits,self.wires,params_tensor)
     
     def info(self):
         info = {'label':self.label, 'contral_lst':[], 'target_lst':self.wires,'params':self.params}
@@ -240,6 +324,9 @@ class XZLayer(SingleGateLayer):
         
         self.nqubits = N
         self.wires = wires
+        #如果是列表，先转成tensor
+        if type(params_lst) == type([1]):
+            params_lst = torch.tensor(params_lst)
         self.params = params_lst
         self.num_params = len(params_lst)
         self.supportTN = True
@@ -258,6 +345,14 @@ class XZLayer(SingleGateLayer):
         lst1 = self._cal_single_gates()
         return multi_kron(lst1) + 0j
     
+    
+    def operation_dagger(self):
+        params_tensor = -1*self.params
+        for i in range(len(self.wires)):
+            temp = copy.deepcopy( params_tensor[2*i+0] )
+            params_tensor[2*i+0] = params_tensor[2*i+1]
+            params_tensor[2*i+1] = temp
+        return ZXLayer(self.nqubits,self.wires,params_tensor)
     
     def info(self):
         info = {'label':self.label, 'contral_lst':[], 'target_lst':self.wires,'params':self.params}
@@ -290,6 +385,9 @@ class ZXLayer(SingleGateLayer):
         
         self.nqubits = N
         self.wires = wires
+        #如果是列表，先转成tensor
+        if type(params_lst) == type([1]):
+            params_lst = torch.tensor(params_lst)
         self.params = params_lst
         self.num_params = len(params_lst)
         self.supportTN = True
@@ -307,7 +405,15 @@ class ZXLayer(SingleGateLayer):
     def U_expand(self):
         lst1 = self._cal_single_gates()
         return multi_kron(lst1) + 0j
-        
+    
+    def operation_dagger(self):
+        params_tensor = -1*self.params
+        for i in range(len(self.wires)):
+            temp = copy.deepcopy( params_tensor[2*i+0] )
+            params_tensor[2*i+0] = params_tensor[2*i+1]
+            params_tensor[2*i+1] = temp
+        return XZLayer(self.nqubits,self.wires,params_tensor)
+    
     def info(self):
         info = {'label':self.label, 'contral_lst':[], 'target_lst':self.wires,'params':self.params}
         return info
@@ -345,7 +451,10 @@ class HLayer(SingleGateLayer):
     def U_expand(self):
         lst1 = self._cal_single_gates()
         return multi_kron(lst1) + 0j
-        
+    
+    def operation_dagger(self):
+        return self
+    
     def info(self):
         info = {'label':self.label, 'contral_lst':[], 'target_lst':self.wires,'params':None}
         return info
@@ -366,6 +475,7 @@ class ring_of_cnot(TwoQbitGateLayer):
     # label = "ring_of_cnot_Layer"
     
     def __init__(self,N,wires):
+        #ladderdown=True表示用下降的阶梯式排列ring of cnot
         
         if len(wires) > N:
             raise ValueError("ring_of_cnotLayer: number of wires must <= N")
@@ -399,7 +509,6 @@ class ring_of_cnot(TwoQbitGateLayer):
         if self.wires == list( range(self.nqubits) ):
             return self._gate_fusion_U_expand(self.nqubits)
         
-        #I = torch.eye(2**self.nqubits,2**self.nqubits) + 0j
         rst = torch.eye(2**self.nqubits,2**self.nqubits) + 0j
         for i,qbit in enumerate( self.wires ):
             # if i == L-1: #临时加的
@@ -440,7 +549,9 @@ class ring_of_cnot(TwoQbitGateLayer):
             # temp = (temp1.unsqueeze(1) @ temp2.unsqueeze(0) ).permute(2,3,0,1)
             # shape = temp.shape
             # temp = temp.view(shape[0],shape[1],shape[2]*shape[3],1)
-            
+            '''
+            试着直接用非邻近cnot门，不要用SWAP了
+            '''
             if i != L-2:
                 MPS = SWAP(self.nqubits,[i,i+1]).TN_operation(MPS)
                 #temp = SWAP().matrix @ temp
@@ -466,13 +577,11 @@ class ring_of_cnot(TwoQbitGateLayer):
             # #融合后的张量恢复成两个张量
             # MPS[self.wires[i]],MPS[self.wires[(i+1)%L]] = TensorDecompAfterTwoQbitGate(temp)
         #======================================================================
-        # sv = MPS2StateVec(MPS).view(-1,1)
-        # sv = cnot(self.nqubits,[ self.wires[L-1],self.wires[0] ]).U_expand() @ sv
-        # MPS = StateVec2MPS(sv.view(1,-1),self.nqubits)
-            
-        # for each in MPS:
-        #     print(each.shape)
         return MPS
+    
+    def operation_dagger(self):
+        return ring_of_cnot_dagger(self.nqubits,self.wires)
+    
     
     def info(self):
         L = len(self.wires)
@@ -487,7 +596,94 @@ class ring_of_cnot(TwoQbitGateLayer):
         pass
 
 
+class ring_of_cnot_dagger(TwoQbitGateLayer):
+    '''
+    这是上面ring_of_cnot layer的转置共轭算符，比如一个5qubit线路的ring_of_cnot_dagger
+    本质就是4控0,3控4，2控3，1控2，0控1依次的五个cnot
+    '''
+    
+    def __init__(self,N,wires):
+        #ladderdown=True表示用下降的阶梯式排列ring of cnot
+        
+        if len(wires) > N:
+            raise ValueError("ring_of_cnot_dagger: number of wires must <= N")
+        if len(wires) < 2:
+            raise ValueError("ring_of_cnot_dagger: number of wires must >= 2")
+        self.label = "ring_of_cnot_dagger"
+        
+        self.nqubits = N
+        self.wires = wires
+        self.num_params = 0
+        self.supportTN = True
+    
+    def _gate_fusion_U_expand(self,N):
+        if N < 3:
+            raise ValueError('ring_of_cnot_dagger : gate_fusion error! N must be >= 3')
+        I = torch.eye(2,2) + 0j
+        rst = cnot( 2,[0,1] ).U_expand()
+        for i in range( 1, N ):
+            cur_M = cnot( min(2+i,N),[i, (i+1)%N] ).U_expand()
+            if i == N-1:
+                # rst = cur_M @ rst
+                rst = rst @ cur_M
+            else:
+                # rst = cur_M @ torch.kron(rst,I)
+                rst = torch.kron(rst,I) @ cur_M 
+        return rst
+        
+    def U_expand(self):
+        L = len(self.wires)
+        if L == 2:
+            return cnot( self.nqubits,[ self.wires[0],self.wires[1] ]).U_expand()
+        
+        if self.wires == list( range(self.nqubits) ):
+            return self._gate_fusion_U_expand(self.nqubits)
+        
+        rst = torch.eye(2**self.nqubits,2**self.nqubits) + 0j
+        for i,qbit in enumerate( self.wires ):
+            rst = rst @ cnot(self.nqubits,[ self.wires[i],self.wires[(i+1)%L] ]).U_expand() 
 
+        return rst
+    
+    def TN_operation(self,MPS:List[torch.Tensor])->List[torch.Tensor]:
+        
+        if self.wires != list( range(self.nqubits) ):
+            raise ValueError('ring_of_cnot_dagger,TN_operation error')
+        
+        L = len(self.wires)
+        
+        if self.nqubits == 2:
+            MPS = cnot(2,[0,1]).TN_operation(MPS)
+            return MPS
+
+        for i in range(L-1):
+            if i != L-2:
+                MPS = SWAP(self.nqubits,[i,i+1]).TN_operation(MPS)
+            else:
+                MPS = cnot(self.nqubits,[i+1,i]).TN_operation(MPS)
+        for i in range(L-3,-1,-1):
+            MPS = SWAP(self.nqubits,[i,i+1]).TN_operation(MPS)
+        
+        for i in range(L-2,-1,-1):
+            MPS = cnot(self.nqubits,[i,i+1]).TN_operation(MPS)
+            
+        return MPS
+    
+    def operation_dagger(self):
+        return ring_of_cnot(self.nqubits, self.wires)
+    
+    
+    def info(self):
+        L = len(self.wires)
+        target_lst = [self.wires[(i+1)%L] for i in range(L)]
+        if L == 2:
+            info = {'label':self.label, 'contral_lst':[self.wires[0]], 'target_lst':[self.wires[1]],'params':None}
+        else:
+            info = {'label':self.label, 'contral_lst':self.wires, 'target_lst':target_lst,'params':None}
+        return info
+    
+    def params_update(self,params_lst):
+        pass
 
 
 
@@ -539,7 +735,10 @@ class ring_of_cnot2(TwoQbitGateLayer):
             rst = cnot(self.nqubits,[ self.wires[i],self.wires[(i+2)%L] ]).U_expand() @ rst
 
         return rst
-        
+    
+    def operation_dagger(self):
+        pass
+    
     def info(self):
         L = len(self.wires)
         target_lst = [self.wires[(i+2)%L] for i in range(L)]
@@ -598,6 +797,9 @@ class BasicEntangleLayer(TwoQbitGateLayer):
             #rst = self.part2_lst[i].U_expand() @ self.part1_lst[i].U_expand() @ rst
             rst = cnot_ring @ self.part1_lst[i].U_expand() @ rst
         return rst
+    
+    def operation_dagger(self):
+        pass
         
     def info(self):
         info = {'label':self.label, 'contral_lst':[], 'target_lst':self.wires, 'params':self.params}

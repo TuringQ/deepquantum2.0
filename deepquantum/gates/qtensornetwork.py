@@ -73,6 +73,9 @@ def TensorDecompAfterTwoQbitGate(tensor:torch.Tensor):
     U,S,V = torch.svd( tensor )
     V_d = V.permute(1,0).conj()
     D = len( (S[torch.abs(S)>1e-8]).view(-1) ) #D：bond dimension
+    #print('D: ',D)
+    # if D==0:
+    #     print(S)
     S = torch.diag(S) + 0j
     #根据bond dimension对张量进行缩减
     if D < S.shape[0]:

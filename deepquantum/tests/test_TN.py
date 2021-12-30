@@ -83,7 +83,7 @@ if 1:
     c2.BasicEntangleLayer(wires_lst, weight[0:18*N],repeat=6)
     c2.YZYLayer(wires_lst, weight[18*N:21*N])
     
-    itern = 10
+    itern = 5
     T1 = 0.0;T2 = 0.0
     for ii in range(itern):
         
