@@ -58,15 +58,15 @@ class qcir(torch.jit.ScriptModule):
         super().__init__()
         self.nqubits = nqubits
         self.weight = \
-            nn.Parameter( nn.init.uniform_(torch.empty(12*self.nqubits), a=0.0, b=2*torch.pi) )
+            nn.Parameter( nn.init.uniform_(torch.empty(18*self.nqubits), a=0.0, b=2*torch.pi) )
     
     def forward(self):
         wires_lst = [i for i in range(self.nqubits)]
         L = len(wires_lst)
         
         c1 = Circuit(self.nqubits) 
-        c1.BasicEntangleLayer(wires_lst, self.weight[0:9*self.nqubits], repeat=3)
-        c1.YZYLayer(wires_lst, self.weight[9*self.nqubits:12*self.nqubits])
+        c1.BasicEntangleLayer(wires_lst, self.weight[0:15*self.nqubits], repeat=5)
+        c1.YZYLayer(wires_lst, self.weight[15*self.nqubits:18*self.nqubits])
         # for i in wires_lst:
         #     c1.ry(self.weight[3*i+0], i)
         #     c1.rz(self.weight[3*i+1], i)
