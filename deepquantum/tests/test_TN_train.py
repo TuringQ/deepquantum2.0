@@ -307,7 +307,7 @@ def foo(x1):
 
 if __name__ == "__main__":
     
-    N = 3
+    N = 6
     num_examples = 256
     num_inputs = 1
     num_outputs = 1

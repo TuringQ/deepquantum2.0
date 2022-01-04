@@ -48,21 +48,31 @@ def StateVec2MPS(psi:torch.Tensor, N:int, d:int=2)->List[torch.Tensor]:
     return rst_lst
 
 
-def MPS2StateVec(tensor_lst:List[torch.Tensor])->torch.Tensor:
+def MPS2StateVec(tensor_lst:List[torch.Tensor],return_sv=True)->torch.Tensor:
     #t1 = time.time()
     N = len(tensor_lst)
-    for i in range(N):
-        temp = tensor_lst[i].unsqueeze(0)
-        if i == 0:
-            c_tensor = tensor_lst[i]
-        else:
-            c_tensor = c_tensor.unsqueeze(1) @ temp
-            shape = c_tensor.shape
-            c_tensor = c_tensor.view(shape[0]*shape[1],shape[2],shape[3])
-    c_tensor = c_tensor.view(-1).view(1,-1)
-    #t2 = time.time()
-    #print('MPS:',t2-t1)
-    return c_tensor #返回1行2^N列的张量，表示态矢的系数
+    if return_sv == True:
+        for i in range(N):
+            temp = tensor_lst[i].unsqueeze(0)
+            if i == 0:
+                c_tensor = tensor_lst[i]
+            else:
+                c_tensor = c_tensor.unsqueeze(1) @ temp
+                shape = c_tensor.shape
+                c_tensor = c_tensor.view(shape[0]*shape[1],shape[2],shape[3])
+    
+        c_tensor = c_tensor.view(-1).view(1,-1)
+        return c_tensor #返回1行2^N列的张量，表示态矢的系数
+    else:
+        for i in range(N):
+            temp = tensor_lst[i].unsqueeze(0)
+            if i == 0:
+                c_tensor = tensor_lst[i]
+            else:
+                c_tensor = c_tensor.unsqueeze(i) @ temp
+        c_tensor = c_tensor.squeeze()
+        assert len(c_tensor.shape) == N
+        return c_tensor #rank-N张量
 
 
 def TensorDecompAfterTwoQbitGate(tensor:torch.Tensor):
@@ -77,10 +87,15 @@ def TensorDecompAfterTwoQbitGate(tensor:torch.Tensor):
     # if D==0:
     #     print(S)
     S = torch.diag(S) + 0j
-    #根据bond dimension对张量进行缩减
+    #默认情况下（不人为设置bond dimension）根据算得的bond dimension对张量进行缩减
+    #if bond_dim == -1 and D < S.shape[0]:
     if D < S.shape[0]:
         U = torch.index_select(U, 1, torch.tensor(list(range(D))))
         S = torch.index_select(S, 0, torch.tensor(list(range(D))))
+    # elif bond_dim > 0:
+    #     #根据人为设置的bond_dim来做分解
+    #     U = torch.index_select(U, 1, torch.tensor(list(range(bond_dim))))
+    #     S = torch.index_select(S, 0, torch.tensor(list(range(bond_dim))))
     
     rst1 = (U.view(2,-1,U.shape[1]))
     

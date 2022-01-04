@@ -47,6 +47,27 @@ class SingleGateLayer(Operation):
 
         return MPS
     
+    def TN_contract(self, MPS:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
+        lst1 = self._cal_single_gates()
+        if batch_mod==False:
+            for qbit in self.wires:
+                permute_shape = list( range(self.nqubits) )
+                permute_shape[qbit] = self.nqubits - 1
+                permute_shape[self.nqubits - 1] = qbit
+                MPS = MPS.permute(permute_shape).unsqueeze(-1)
+                MPS = ( lst1[qbit] @ MPS ).squeeze(-1)
+                MPS = MPS.permute(permute_shape)
+            return MPS
+        else:
+            for qbit in self.wires:
+                permute_shape = list( range(self.nqubits+1) )
+                permute_shape[qbit+1] = self.nqubits
+                permute_shape[self.nqubits] = qbit+1
+                MPS = MPS.permute(permute_shape).unsqueeze(-1)
+                MPS = ( lst1[qbit] @ MPS ).squeeze(-1)
+                MPS = MPS.permute(permute_shape)
+            return MPS
+    
     #def TN_operation_mp(self,MPS:List[torch.Tensor])->List[torch.Tensor]:
         # lst1 = self._cal_single_gates()
         # pool = mp.Pool(processes=8)
@@ -112,11 +133,33 @@ class XYZLayer(SingleGateLayer):
         lst1 = [torch.eye(2,2)]*self.nqubits
         for i,qbit in enumerate( self.wires ):
             
-            xm = rx(self.params[3*i+0]).matrix
-            ym = ry(self.params[3*i+1]).matrix
-            zm = rz(self.params[3*i+2]).matrix
+            # xm = rx(self.params[3*i+0]).matrix
+            # ym = ry(self.params[3*i+1]).matrix
+            # zm = rz(self.params[3*i+2]).matrix
+            
+            # lst1[qbit] = zm @ ym @ xm
+            # print(lst1[qbit])
+            #==================================================
+            #不调用rxryrz类可以减少耗时
+            X = torch.tensor([[0,1],[1,0]])
+            Y = torch.tensor([[0,-1j],[1j,0]])
+            Z = torch.tensor([[1,0],[0,-1]])
+            I = torch.eye(2,2)
+            
+            c = torch.cos(0.5*self.params[3*i+0])
+            s = torch.sin(0.5*self.params[3*i+0])
+            xm = c*I - 1j*s*X
+
+            c = torch.cos(0.5*self.params[3*i+1])
+            s = torch.sin(0.5*self.params[3*i+1])
+            ym = c*I - 1j*s*Y
+            
+            c = torch.cos(0.5*self.params[3*i+2])
+            s = torch.sin(0.5*self.params[3*i+2])
+            zm = c*I - 1j*s*Z
             
             lst1[qbit] = zm @ ym @ xm
+            #print(lst1[qbit])
         return lst1
     
     def U_expand(self):
@@ -163,11 +206,33 @@ class ZYXLayer(SingleGateLayer):
         lst1 = [torch.eye(2,2)]*self.nqubits
         for i,qbit in enumerate( self.wires ):
             
-            zm = rz(self.params[3*i+0]).matrix
-            ym = ry(self.params[3*i+1]).matrix
-            xm = rx(self.params[3*i+2]).matrix
+            # zm = rz(self.params[3*i+0]).matrix
+            # ym = ry(self.params[3*i+1]).matrix
+            # xm = rx(self.params[3*i+2]).matrix
+            
+            # lst1[qbit] = xm @ ym @ zm
+            # print(lst1[qbit])
+            #==================================================
+            #不调用rxryrz类可以减少耗时
+            X = torch.tensor([[0,1],[1,0]])
+            Y = torch.tensor([[0,-1j],[1j,0]])
+            Z = torch.tensor([[1,0],[0,-1]])
+            I = torch.eye(2,2)
+            
+            c = torch.cos(0.5*self.params[3*i+0])
+            s = torch.sin(0.5*self.params[3*i+0])
+            zm = c*I - 1j*s*Z
+
+            c = torch.cos(0.5*self.params[3*i+1])
+            s = torch.sin(0.5*self.params[3*i+1])
+            ym = c*I - 1j*s*Y
+            
+            c = torch.cos(0.5*self.params[3*i+2])
+            s = torch.sin(0.5*self.params[3*i+2])
+            xm = c*I - 1j*s*X
             
             lst1[qbit] = xm @ ym @ zm
+            #print(lst1[qbit])
         return lst1
     
     def U_expand(self):
@@ -215,13 +280,64 @@ class YZYLayer(SingleGateLayer):
         
     def _cal_single_gates(self):
         lst1 = [torch.eye(2,2)]*self.nqubits
+        #lst1 = torch.stack( tuple([torch.eye(2,2)+0j]*self.nqubits),dim=0 )
+        #print(lst1.shape)
+        #这个for循环才是主要耗时的代码
         for i,qbit in enumerate( self.wires ):
             
-            y1m = ry(self.params[3*i+0]).matrix
-            zm = rz(self.params[3*i+1]).matrix
-            y2m = ry(self.params[3*i+2]).matrix
+            # y1m = ry(self.params[3*i+0]).matrix
+            # zm = rz(self.params[3*i+1]).matrix
+            # y2m = ry(self.params[3*i+2]).matrix
+            
+            # lst1[qbit] = y2m @ zm @ y1m
+            # print(lst1[qbit])
+            #==================================================
+            #不调用rxryrz类可以减少耗时
+            #X = torch.tensor([[0,1],[1,0]])
+            Y = torch.tensor([[0,-1j],[1j,0]])
+            Z = torch.tensor([[1,0],[0,-1]])
+            I = torch.eye(2,2)
+            
+            c = torch.cos(0.5*self.params[3*i+0])
+            s = torch.sin(0.5*self.params[3*i+0])
+            y1m = c*I - 1j*s*Y
+
+            c = torch.cos(0.5*self.params[3*i+1])
+            s = torch.sin(0.5*self.params[3*i+1])
+            zm = c*I - 1j*s*Z
+            
+            c = torch.cos(0.5*self.params[3*i+2])
+            s = torch.sin(0.5*self.params[3*i+2])
+            y2m = c*I - 1j*s*Y
             
             lst1[qbit] = y2m @ zm @ y1m
+            #print(lst1[qbit])
+            
+            #=================================================
+            # c1 = torch.cos(0.5*self.params[3*i+0])
+            # s1 = torch.sin(0.5*self.params[3*i+0])
+            # e = torch.exp(-1j*0.5*self.params[3*i+1])
+            # ec = e.conj()
+            # c2 = torch.cos(0.5*self.params[3*i+2])
+            # s2 = torch.sin(0.5*self.params[3*i+2])
+            # a = e*c2*c1 - ec*s2*s1
+            # b = -e*c2*s1 - ec*s2*c1
+            # lst1[qbit] = torch.tensor([[a,b],[-b.conj(),a.conj()]])+0j
+            
+            #=================================================
+            # x = 0.5*(self.params[3*i+2]+self.params[3*i+0])
+            # y = 0.5*(self.params[3*i+2]-self.params[3*i+0])
+            # cp = torch.cos( x )
+            # cn = torch.cos( y )
+            # sp = torch.sin( x )
+            # sn = torch.sin( -y )
+            # er = torch.cos( 0.5*self.params[3*i+1] )
+            # ei = torch.sin( 0.5*self.params[3*i+1] )
+            # a = er*cp - 1j*ei*cn
+            # b = -er*sp + 1j*ei*sn
+            # lst1[qbit] = torch.tensor([[a,b],[-b.conj(),a.conj()]])+0j
+            #print(lst1[qbit])
+        #print('yzy:',lst1[qbit].requires_grad)
         return lst1
     
     
@@ -277,11 +393,32 @@ class XZXLayer(SingleGateLayer):
         lst1 = [torch.eye(2,2)]*self.nqubits
         for i,qbit in enumerate( self.wires ):
             
-            x1m = rx(self.params[3*i+0]).matrix
-            zm = rz(self.params[3*i+1]).matrix
-            x2m = rx(self.params[3*i+2]).matrix
+            # x1m = rx(self.params[3*i+0]).matrix
+            # zm = rz(self.params[3*i+1]).matrix
+            # x2m = rx(self.params[3*i+2]).matrix
+            
+            # lst1[qbit] = x2m @ zm @ x1m
+            # print(lst1[qbit])
+            
+            X = torch.tensor([[0,1],[1,0]])
+            #Y = torch.tensor([[0,-1j],[1j,0]])
+            Z = torch.tensor([[1,0],[0,-1]])
+            I = torch.eye(2,2)
+            
+            c = torch.cos(0.5*self.params[3*i+0])
+            s = torch.sin(0.5*self.params[3*i+0])
+            x1m = c*I - 1j*s*X
+
+            c = torch.cos(0.5*self.params[3*i+1])
+            s = torch.sin(0.5*self.params[3*i+1])
+            zm = c*I - 1j*s*Z
+            
+            c = torch.cos(0.5*self.params[3*i+2])
+            s = torch.sin(0.5*self.params[3*i+2])
+            x2m = c*I - 1j*s*X
             
             lst1[qbit] = x2m @ zm @ x1m
+            #print(lst1[qbit])
         return lst1
     
     def U_expand(self):
@@ -335,9 +472,20 @@ class XZLayer(SingleGateLayer):
         lst1 = [torch.eye(2,2)]*self.nqubits
         for i,qbit in enumerate( self.wires ):
             
-            xm = rx(self.params[2*i+0]).matrix
-            zm = rz(self.params[2*i+1]).matrix
+            # xm = rx(self.params[2*i+0]).matrix
+            # zm = rz(self.params[2*i+1]).matrix
 
+            # lst1[qbit] = zm @ xm
+            
+            X = torch.tensor([[0,1],[1,0]])
+            Z = torch.tensor([[1,0],[0,-1]])
+            I = torch.eye(2,2)
+            c = torch.cos(0.5*self.params[2*i+0])
+            s = torch.sin(0.5*self.params[2*i+0])
+            xm = c*I - 1j*s*X
+            c = torch.cos(0.5*self.params[2*i+1])
+            s = torch.sin(0.5*self.params[2*i+1])
+            zm = c*I - 1j*s*Z
             lst1[qbit] = zm @ xm
         return lst1
     
@@ -396,9 +544,23 @@ class ZXLayer(SingleGateLayer):
         lst1 = [torch.eye(2,2)]*self.nqubits
         for i,qbit in enumerate( self.wires ):
             
-            zm = rz(self.params[2*i+0]).matrix
-            xm = rx(self.params[2*i+1]).matrix
+            # zm = rz(self.params[2*i+0]).matrix
+            # xm = rx(self.params[2*i+1]).matrix
 
+            # lst1[qbit] = xm @ zm
+            
+            X = torch.tensor([[0,1],[1,0]])
+            Z = torch.tensor([[1,0],[0,-1]])
+            I = torch.eye(2,2)
+            
+            c = torch.cos(0.5*self.params[2*i+0])
+            s = torch.sin(0.5*self.params[2*i+0])
+            zm = c*I - 1j*s*Z
+            
+            c = torch.cos(0.5*self.params[2*i+1])
+            s = torch.sin(0.5*self.params[2*i+1])
+            xm = c*I - 1j*s*X
+            
             lst1[qbit] = xm @ zm
         return lst1
     
@@ -442,10 +604,12 @@ class HLayer(SingleGateLayer):
         self.supportTN = True
      
     def _cal_single_gates(self):
-        lst1 = [torch.eye(2,2)]*self.nqubits
+        lst1 = [torch.eye(2,2)]*self.nqubits 
+        H = torch.sqrt( torch.tensor(0.5) )*\
+            torch.tensor([[1,1],[1,-1]]) + 0j
         for i,qbit in enumerate( self.wires ):
-
-            lst1[qbit] = Hadamard().matrix
+            # lst1[qbit] = Hadamard().matrix
+            lst1[qbit] = H
         return lst1
         
     def U_expand(self):
@@ -579,6 +743,31 @@ class ring_of_cnot(TwoQbitGateLayer):
         #======================================================================
         return MPS
     
+    def TN_contract(self, MPS:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
+        if self.wires != list( range(self.nqubits) ):
+            raise ValueError('ring_of_cnot,TN_contract error')
+        L = len(self.wires)
+        
+        if self.nqubits == 2:
+            MPS = cnot( 2,[self.wires[0],self.wires[1]] ).TN_contract(MPS, batch_mod=batch_mod)
+            return MPS
+        
+        for i in range(L):
+            cqbit = self.wires[i]
+            tqbit = self.wires[(i+1)%L]
+            MPS = cnot(self.nqubits,[cqbit,tqbit]).TN_contract(MPS, batch_mod=batch_mod)
+        # cnot1 = cnot(self.nqubits,[self.wires[0],self.wires[1]])
+        # for i in range(L):
+        #     cnot1.wires[0] = self.wires[i]
+        #     cnot1.wires[1] = self.wires[(i+1)%L]
+        #     MPS = cnot1.TN_contract(MPS)
+        return MPS
+    
+    
+    
+    
+    
+    
     def operation_dagger(self):
         return ring_of_cnot_dagger(self.nqubits,self.wires)
     
@@ -668,6 +857,23 @@ class ring_of_cnot_dagger(TwoQbitGateLayer):
             MPS = cnot(self.nqubits,[i,i+1]).TN_operation(MPS)
             
         return MPS
+    
+    
+    def TN_contract(self, MPS:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
+        if self.wires != list( range(self.nqubits) ):
+            raise ValueError('ring_of_cnot_dagger,TN_contract error')
+        L = len(self.wires)
+        
+        if self.nqubits == 2:
+            MPS = cnot( 2,[self.wires[0],self.wires[1]] ).TN_contract(MPS, batch_mod=batch_mod)
+            return MPS
+        
+        for i in range(L-1,-1,-1):
+            cqbit = self.wires[i]
+            tqbit = self.wires[(i+1)%L]
+            MPS = cnot(self.nqubits,[cqbit,tqbit]).TN_contract(MPS, batch_mod=batch_mod)
+        return MPS
+    
     
     def operation_dagger(self):
         return ring_of_cnot(self.nqubits, self.wires)

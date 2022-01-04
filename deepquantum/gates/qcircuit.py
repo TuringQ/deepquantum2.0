@@ -7,7 +7,7 @@ Created on Mon Nov  8 13:16:17 2021
 import torch
 from collections.abc import Iterable
 from deepquantum.layers.qlayers import HLayer,XYZLayer,YZYLayer,XZXLayer,XZLayer,ZXLayer,\
-    ring_of_cnot,ring_of_cnot2,BasicEntangleLayer
+    ring_of_cnot,ring_of_cnot2,BasicEntangleLayer,ZYXLayer
 from deepquantum.gates.qoperator import Hadamard,PauliX,PauliY,PauliZ,rx,ry,rz,u1,u3,\
     rxx,ryy,rzz,cnot,cz,cphase,cu3,SWAP,toffoli,multi_control_cnot
     
@@ -16,6 +16,7 @@ from deepquantum.gates.qtensornetwork import StateVec2MPS,MPS2StateVec
 
 from typing import List
 import copy
+import time
 #import multiprocessing as mp
 
 
@@ -60,7 +61,7 @@ class Circuit(object):
        
         return U_overall
     
-    def TN_evolution(self,MPS:List[torch.Tensor])->List[torch.Tensor]:
+    def TN_evolution(self, MPS:List[torch.Tensor])->List[torch.Tensor]:
         if len(MPS) != self.nqubits:
             raise ValueError('TN_evolution:MPS tensor list must have N elements!')
         #MPS1 = copy.deepcopy(MPS)
@@ -72,12 +73,31 @@ class Circuit(object):
                 # print(idx,' : ',psi_mid.view(-1))
             else:
                 raise ValueError(str(oper.info()['label'])
-                                 +'-TN_evolution:some part of circuit do not support Tensor Network')
+                                 +'-TN_evolution:some part of circuit do NOT support Tensor Network')
         return MPS
     
     
     
-    def cir_expectation(self,init_state,M,TN=True):
+    
+    def TN_contract_evolution(self, MPS:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
+        if batch_mod == False:
+            assert len(MPS.shape) == self.nqubits
+        else:
+            assert len(MPS.shape) == self.nqubits+1
+        for idx,oper in enumerate(self.gate):
+            if oper.supportTN == True:
+                #t = time.time()
+                MPS = oper.TN_contract(MPS, batch_mod=batch_mod)
+                #print(MPS.requires_grad)
+                #print('consume time: ',time.time() - t)
+            else:
+                raise ValueError(str(oper.info()['label'])
+                                 +'-TN_contract:some parts of circuit do NOT support Tensor Network')
+        return MPS
+    
+    
+    
+    def cir_expectation(self, init_state,M,TN=True):
         if init_state.shape[0] != 1:
             raise ValueError('cir_expectation init_state shape error')
         if init_state.shape[1] != int(2**self.nqubits):
@@ -208,6 +228,9 @@ class Circuit(object):
     #====================================================================    
     def XYZLayer(self, wires, params_lst):
         self.add( XYZLayer(self.nqubits, wires, params_lst) )
+    
+    def ZYXLayer(self, wires, params_lst):
+        self.add( ZYXLayer(self.nqubits, wires, params_lst) )
     
     def YZYLayer(self, wires, params_lst):
         self.add( YZYLayer(self.nqubits, wires, params_lst) )

@@ -161,12 +161,13 @@ if 1:
     # a1.toffoli([0,15,3])
     
     
-    MPS = StateVec2MPS(psi,N)
-    MPS = a1.TN_evolution(MPS)
-    psif1 = MPS2StateVec(MPS).view(1,-1)
+    MPS = MPS2StateVec( StateVec2MPS(psi,N),return_sv=False )
+    MPS = a1.TN_contract_evolution(MPS)
+    # psif1 = MPS2StateVec(MPS).view(1,-1)
+    psif1 = MPS.reshape(1,-1)
     t2 = time.time()
     print('门的数目: ',len(a1.gate))
-    print(a1.num_params())
+    #print(a1.num_params())
     #for each in psif[0]:
         #print(each)
     #torch.set_printoptions(precision=4)
