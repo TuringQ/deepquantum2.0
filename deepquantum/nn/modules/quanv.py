@@ -57,7 +57,6 @@ class QuanConv2D(nn.Module):
         return M_lst
     def _input(self, data):
         cir1 = Circuit(self.n_qubits)
-        print(data, "!!!!!!")
         for which_q in range(0, self.n_qubits, 1):
             cir1.ry(theta=np.pi * data[which_q], wires=which_q)
         out = cir1.U()
@@ -68,9 +67,9 @@ class QuanConv2D(nn.Module):
         w = self.weight * self.w_mul
 
         for which_q in range(0, self.n_qubits, 1):
-            cir2.rx(theta=w[3*which_q+0],wires=which_q)
-            cir2.rz(theta=w[3*which_q+1],wires=which_q)
-            cir2.rx(theta=w[3*which_q+2],wires=which_q)
+            cir2.rx(theta=w[3*which_q+0], wires=which_q)
+            cir2.rz(theta=w[3*which_q+1], wires=which_q)
+            cir2.rx(theta=w[3*which_q+2], wires=which_q)
 
         for which_q in range(0, self.n_qubits, 1):
             cir2.cnot(wires=[which_q, (which_q+1) % self.n_qubits])
@@ -101,14 +100,9 @@ class QuanConv2D(nn.Module):
                     U1 = self._input(x)
                     rho_out1 = U1 @ init_matrix @ dag(U1)
                     rho_out2 = self._qconv(rho_out1)
-                    # 模拟测量得到各个测量力学量的期望值
-                    measure_rst = []
-                    for Mi in self.M_lst:
-                        measure_rst.append(measure(rho_out2, Mi, rho=True))
+                    measure_rst = measure(self.n_qubits, state=rho_out2)
                     classical_value = measure_rst
-                    print(classical_value)
                     for c in range(out_channel):
-                        print(j, k)
                         out[batch_i, c, j // self.stride, k // self.stride ] = classical_value[c]
         return out
 
