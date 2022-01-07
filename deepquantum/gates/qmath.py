@@ -7,12 +7,6 @@ from typing import List
 import deepquantum as dq
 import time
 
-
-def norm_vector1d(vector):
-    """归一化态矢"""
-    vector = vector / torch.sqrt(vector @ vector.T.conj())
-    return vector
-
 def multi_kron(lst:List[torch.Tensor]):
     #为避免torchscript类型推断错误，需要特别指定输入数据类型
     rst = lst[0]
@@ -208,47 +202,6 @@ def partial_trace(rho, N, trace_lst):
     
     return partial_trace(rho_nxt, N-1, new_lst) + 0j
 
-def batch_ptrace(batch_rho, keep_list=None, trace_list=None):
-    """
-        fbo对batch密度矩阵进行ptrace
-    :param batch_rho: 密度矩阵 （batch，state）
-    :param keep_list:要保留的线路
-    :param trace_list: 要丢弃的线路
-    :return:
-    """
-    qubits_number = torch.log2(torch.tensor(len(batch_rho[0]))).int()
-
-    if keep_list is not None:
-        trace_list = list(range(qubits_number))
-        for keep in keep_list:
-            trace_list.remove(keep)
-
-    if trace_list is None:
-        return batch_rho
-    if len(trace_list) == 0:
-        return batch_rho
-
-    trace_list.sort()
-
-    list_zero = []
-    list_one = []
-
-    for i in range(2 ** qubits_number):
-        binary = bin(i)[2:].zfill(qubits_number)
-        if binary[trace_list[0]] == '0':
-            list_zero.append(i)
-        else:
-            list_one.append(i)
-
-    batch_rho_A = batch_rho.index_select(1, torch.tensor(list_zero))
-    batch_rho_B = batch_rho.index_select(1, torch.tensor(list_one))
-
-    batch_rho_A = batch_rho_A.index_select(2, torch.tensor(list_zero))
-    batch_rho_B = batch_rho_B.index_select(2, torch.tensor(list_one))
-
-    batch_rho = batch_rho_A + batch_rho_B
-    return batch_ptrace(batch_rho, trace_list=[i - 1 for i in trace_list[1:]])
-
 
 
 def _Zmeasure(n_qubit:int, ith=None):
@@ -317,39 +270,22 @@ if __name__ == '__main__':
     value = measure(N, state=state1)
     print(value)
 
-    r1 = partial_trace_old(rho, N, trace_lst)
-    r2 = partial_trace(rho, N, trace_lst)
-    print(r1-r2)
-    t1 = time.time()
-    for i in range(10):
-        r1 = partial_trace_old(rho, N, trace_lst)
-    t2 = time.time()
-    for i in range(10):
-        r2 = partial_trace(rho, N, trace_lst)
-    t3 = time.time()
-    print('old method:', t2 - t1)
-    print('new method:', t3 - t2)
+    # r1 = partial_trace_old(rho, N, trace_lst)
+    # r2 = partial_trace(rho, N, trace_lst)
+    # print(r1-r2)
+    # t1 = time.time()
+    # for i in range(10):
+    #     r1 = partial_trace_old(rho, N, trace_lst)
+    # t2 = time.time()
+    # for i in range(10):
+    #     r2 = partial_trace(rho, N, trace_lst)
+    # t3 = time.time()
+    # print('old method:', t2 - t1)
+    # print('new method:', t3 - t2)
     # print('new/old:', (t3 - t2)/(t2 - t1))
-    #11qubit,13%,12qubit,7%,13qubit,3.5%
+    # #11qubit,13%,12qubit,7%,13qubit,3.5%
     # input('')
-
-    print("="*100)
-    print("测试batch_ptrace")
-    state = torch.rand(8) + 0j
-    print("state", state)
-    state = norm_vector1d(state)
-    print("state", state)
-
-    state = torch.unsqueeze(state, 1)
-    rho = state @ torch.conj(state).T
-
-    batch_rho = torch.zeros(4, 8, 8) + 0j
-    batch_rho[0] = rho + 1
-    batch_rho[1] = rho + 2
-    batch_rho[2] = rho + 3
-    last_rho = batch_ptrace(batch_rho, keep_list=[0,2])
-    print(batch_rho)
-    print(last_rho)
+    
     
     
     
