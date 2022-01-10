@@ -7,6 +7,6 @@ Deep Quantum aims at establishing a bridge between artificial intelligence (AI) 
 
 Install the deepquantum with the following commands.
 
-    git clone https://github.com/TuringQ/deepquantum.git
-    cd deepquantum
+    git clone https://github.com/TuringQ/deepquantum2.0.git
+    cd deepquantum2.0
     pip install -e .
