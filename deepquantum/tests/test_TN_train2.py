@@ -289,7 +289,7 @@ def foo(x1):
 
 if __name__ == "__main__":
     
-    N = 6
+    N = 10
     num_examples = 512
     num_inputs = 1
     num_outputs = 1

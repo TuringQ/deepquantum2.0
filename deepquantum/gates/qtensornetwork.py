@@ -48,6 +48,21 @@ def StateVec2MPS(psi:torch.Tensor, N:int, d:int=2)->List[torch.Tensor]:
     return rst_lst
 
 
+
+def MatrixProductState(psi:torch.Tensor, N:int)->torch.Tensor:
+    #t1 = time.time()
+    #输入合法性检测：输入的态矢必须是1行2^N列的张量
+    if len(psi.shape) != 2:
+        raise ValueError('StateVec2MPS:input dimension error!')
+    if psi.shape[0] != 1 or psi.shape[1] != 2**N:
+        raise ValueError('StateVec2MPS:input shape must be 1 ROW 2^N COLUMN')
+    
+    MPS = psi.view([2]*N)
+    return MPS
+
+
+
+
 def MPS2StateVec(tensor_lst:List[torch.Tensor],return_sv=True)->torch.Tensor:
     #t1 = time.time()
     N = len(tensor_lst)
@@ -280,7 +295,25 @@ def MPS2Rho(MPS:List[torch.Tensor])->torch.Tensor:
     trace = torch.trace(rho).real
     return rho*(1.0/trace)
 
-    
+
+
+
+def MatrixProductDensityOperator(rho:torch.Tensor, N:int)->torch.Tensor:
+    '''
+    以4qubit密度矩阵为例
+    按照j1 j2 j3 j4 j1' j2' j3' j4'的对应关系
+    把rho变成2X2X2X2X2X2X2X2的高阶张量
+    '''
+    if len(rho.shape) != 2:
+        raise ValueError('MPDO: rho must be matrix(rank-2 tensor)')
+    if rho.shape[0] != 2**N or rho.shape[1] != 2**N:
+        raise ValueError('MPDO: dimension of rho must be [2^N, 2^N]')
+    rho_tensor = rho.view([2]*2*N)
+    assert len(rho_tensor.shape) == 2*N
+    return rho_tensor
+
+
+  
 
 # def TensorContraction(TensorA:torch.Tensor,TensorB:torch.Tensor,dimA:int,dimB:int):
 #     '''
