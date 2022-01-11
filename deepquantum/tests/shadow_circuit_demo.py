@@ -350,7 +350,7 @@ if __name__ == "__main__":
             
             # 参考：
             # Pytorch中的CrossEntropyLoss()函数案例解读和结合one-hot编码计算Loss
-            
+            print(output.shape,'  ',y.shape)
             l = loss(output, y);
             optimizer.zero_grad()
             l.requires_grad_(True)

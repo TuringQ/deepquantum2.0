@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 # from door_lxy import Circuit
 # from calculate import dag, measure, IsUnitary
-from deepquantum import qgate, qmath
+#from deepquantum import qgate, qmath
 from deepquantum.gates.qmath import dag
 from deepquantum.gates.qcircuit import Circuit
 from deepquantum.nn.modules.quanv import QuanConv2D
@@ -22,10 +22,11 @@ from deepquantum.embeddings.qembedding import PauliEncoding
 from deepquantum.gates.qtensornetwork import MatrixProductState
 import deepquantum.gates.qoperator as op
 import time
+import copy
 
 BATCH_SIZE = 128
-EPOCHS = 1     # Number of optimization epochs
-n_train = 512    # Size of the train dataset
+EPOCHS = 30     # Number of optimization epochs
+n_train = 512   # Size of the train dataset
 n_test = 128   # Size of the test dataset
 
 SAVE_PATH = "./"  # Data saving folder
@@ -67,6 +68,7 @@ class Net(nn.Module):
         self.fc2 = nn.Linear(64, 10)
 
     def forward(self, x):
+        x = 2*torch.pi*x
         x = x.squeeze(1)
         s = x.shape
         batch_size = s[0]
@@ -74,19 +76,39 @@ class Net(nn.Module):
         row = s[1]
         col = s[2]
         L = int( batch_size*row*col*0.25 )
+        # for idx,e in enumerate( x.reshape(L,4) ):
+        #     print(e)
+        #     if idx%196 == 0:
+        #         print('=================================================')
+        #print('x:  ',x.reshape(L,4)) #确认了五张图都是有白色像素的
         #================================================================================
         c1 = Circuit(self.nqubits) 
         psi0 = c1.state_init().view(1,-1)
         MPSc = MatrixProductState(psi0,self.nqubits)
         MPS_batch = torch.cat( tuple( [MPSc.unsqueeze(0)]*L ),dim=0 )
-        t = time.time()
+        #t = time.time()
+        k = 0
         for id1 in range(batch_size):
             for i in range(0,row,2):
                 for j in range(0,col,2):
-                    input_lst = [x[id1][i,j],x[id1][i,j+1],x[id1][i+1,j],x[id1][i+1,j+1]]
+                    
+                    input_lst = [x[id1][i,j], x[id1][i,j+1], x[id1][i+1,j], x[id1][i+1,j+1]]
                     PE = PauliEncoding( self.nqubits, input_lst, list(range(self.nqubits)) )
-                    MPS_batch[i] = PE.TN_contract(MPS_batch[i])
-        print('三重循环耗时: ',time.time() - t)
+                    MPS_batch[k] = PE.TN_contract(MPS_batch[k])
+                    k = k+1
+                    # if x[id1][i,j]>0 or x[id1][i,j+1]>0 or x[id1][i+1,j]>0 or x[id1][i+1,j+1]>0:
+                    #     k += 1
+                        
+        # print('小方块数量：',k)
+        # kk = 0
+        # for i,each in enumerate( MPS_batch ):
+        #     if i%196 == 0:
+        #         print('=================================================')
+        #     print( each.view(-1) )
+        #     if abs(each.view(-1)[0]-1) > 1e-8:
+        #         kk += 1
+        # print('非平凡态的数量',kk)
+        #print('三重循环耗时: ',time.time() - t)
         #=================================================================================
         
         wires_lst = list(range(self.nqubits))
@@ -103,29 +125,36 @@ class Net(nn.Module):
         
         MPS_batch = c1.TN_contract_evolution(MPS_batch,batch_mod=True)
         s = MPS_batch.shape
+        #print(s)
         MPS_batch1 = torch.clone(MPS_batch)
         MPS_batch1 = MPS_batch1.reshape(s[0],1,-1)
+        #print(MPS_batch1 @ MPS_batch1.)
         
         for i in range(self.nqubits):
             MPS_batch0 = torch.clone(MPS_batch)
             #print(i,'  ',id(MPS_batch0))
             MPS_batch0 = op.PauliZ(self.nqubits,i).TN_contract(MPS_batch0, batch_mod=True)
             MPS_batch0 = MPS_batch0.reshape(s[0],-1,1)
-            rst = (MPS_batch1 @ MPS_batch0).real
+            rst = (MPS_batch1.conj() @ MPS_batch0).real
             rst = rst.squeeze(-1)
+            # print(i,'  ',rst.view(-1))
             #print('rst.shape:' ,rst.shape)
-
+            #print('rst z:  ',rst[:,0])
             if i == 0:
                 rstf = rst
             else:
+                # print('相等？：',torch.abs(rst-rstf[:,-1])<1e-6)
+                # print(rstf.shape,'&',rst.shape)
                 rstf = torch.cat( (rstf,rst),dim=1 )
-        
-        rstf = rstf.view(batch_size, -1)
-        #print('rstf.shape: ',rstf.shape)
+        # print(rstf.shape)
+        #print(torch.abs(rstf[0] - rstf[1]) < 1e-6)
+        #rstf = rstf.reshape(-1)
+        rstf = rstf.reshape(batch_size, -1)
+        # print(rstf.shape,'\n',rstf)
+        # print(torch.abs(rstf[1] - rstf[2]) < 1e-6)
+        # print(torch.abs(rstf[2] - rstf[3]) < 1e-6)
         r1 = F.relu(self.fc1(rstf))
-        #print('r1.shape: ',r1.shape)
         r2 = self.fc2(r1)
-        #print('r2.shape: ',r2.shape)
         return r2
         
                     
@@ -158,16 +187,19 @@ for epoch in range(EPOCHS):
     total_loss = []
     t1 = time.time()
     for batch_idx, (data, target) in enumerate(train_loader):
-        print('data.shape: ',data.shape)
-        print('target.shape: ',target.shape)
+        # print('data.shape: ',data.shape)
+        # print('target.shape: ',target.shape)
         target = target.to(DEVICE)
-        
+        # print('target.shape:',target.shape)
         data = data.to(torch.float32).to(DEVICE)
 
         # Forward pass
         output = model(data).to(DEVICE)
 
         # Calculating loss
+        # print(output.shape,'  ',target.shape)
+        # print('output: ',output)
+        # print('target: ',target)
         loss = loss_func(output, target).to(DEVICE)
         
         #梯度清零
@@ -180,6 +212,9 @@ for epoch in range(EPOCHS):
         optimizer.step()
 
         total_loss.append(loss.item())
+        #print( loss.item() )
+        #print("weights_grad2:",model.weight.grad)
+     
     t2 = time.time()
     loss_list.append(sum(total_loss) / len(total_loss))
     print('Training [{:.0f}%]\tLoss: {:.4f}'.format(100. * (epoch + 1) / EPOCHS, loss_list[-1]))
