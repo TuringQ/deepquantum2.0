@@ -367,7 +367,7 @@ if __name__ == "__main__":
             '''
             #nn.utils.clip_grad_norm_(net1.circuit.weight,max_norm=1,norm_type=2)
             #print('loss: ',l.item())
-            #print("weights_grad2:",net1.circuit.weight.grad,'  weight is leaf?:',net1.circuit.weight.is_leaf)
+            print("weights_grad2:",net1.circuit.weight.grad,'  weight is leaf?:',net1.circuit.weight.is_leaf)
             # grad = net1.circuit.weight.grad
             # net1.circuit.weight.grad \
             #     = torch.where(torch.isnan(grad),torch.full_like(grad, 0),grad)
