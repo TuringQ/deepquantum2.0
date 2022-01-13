@@ -170,13 +170,15 @@ def partial_trace(rho, N, trace_lst):
     
     i = int(trace_lst[0])
     index_lst0 = []  #该列表记录当左右乘0态时，哪些行、列要被保留
-    for idx in range(2**i):
-        for idy in range(2**(N-i-1)):
-            index_lst0.append(idx * (2**(N-i)) + idy)
     index_lst1 = [] #该列表记录当左右乘1态时，哪些行、列要被保留
     for idx in range(2**i):
         for idy in range(2**(N-i-1)):
+            index_lst0.append(idx * (2**(N-i)) + idy)
             index_lst1.append(idx * (2**(N-i)) + idy + 2**(N-i-1))
+    
+    # for idx in range(2**i):
+    #     for idy in range(2**(N-i-1)):
+    #         index_lst1.append(idx * (2**(N-i)) + idy + 2**(N-i-1))
     
     # M0 = torch.empty( 2**(N-1), 2**N ) + 0j
     # M1 = torch.empty( 2**(N-1), 2**N ) + 0j
