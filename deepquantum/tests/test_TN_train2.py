@@ -319,10 +319,10 @@ if __name__ == "__main__":
     net1 = qnet(N)      #构建训练模型
     loss = nn.MSELoss() #平方损失函数
     
-    print('start producing torchscript file')
-    scripted_modeule = torch.jit.script(qnet(N))
-    torch.jit.save(scripted_modeule, 'test_torchscript.pt')
-    print('completed!')
+    # print('start producing torchscript file')
+    # scripted_modeule = torch.jit.script(qnet(N))
+    # torch.jit.save(scripted_modeule, 'test_torchscript.pt')
+    # print('completed!')
     
     
     #定义优化器，也就是选择优化器，选择Adam梯度下降，还是随机梯度下降，或者其他什么
@@ -367,7 +367,7 @@ if __name__ == "__main__":
             '''
             #nn.utils.clip_grad_norm_(net1.circuit.weight,max_norm=1,norm_type=2)
             #print('loss: ',l.item())
-            print("weights_grad2:",net1.circuit.weight.grad,'  weight is leaf?:',net1.circuit.weight.is_leaf)
+            # print("weights_grad2:",net1.circuit.weight.grad,'  weight is leaf?:',net1.circuit.weight.is_leaf)
             # grad = net1.circuit.weight.grad
             # net1.circuit.weight.grad \
             #     = torch.where(torch.isnan(grad),torch.full_like(grad, 0),grad)
