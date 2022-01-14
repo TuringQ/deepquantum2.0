@@ -6,12 +6,14 @@ Created on Mon Nov  8 09:06:10 2021
 """
 import torch
 import torch.nn as nn
-from deepquantum.gates import multi_kron
-from deepquantum.gates.qoperator import Hadamard,rx,ry,rz,rxx,ryy,rzz,cnot,cz,SWAP,Operation
-from deepquantum.gates.qtensornetwork import StateVec2MPS,MPS2StateVec,TensorDecompAfterTwoQbitGate
 import time
 from typing import List
 import copy
+
+from deepquantum.gates import multi_kron
+from deepquantum.gates.qoperator import Hadamard,rx,ry,rz,rxx,ryy,rzz,cnot,cz,SWAP,Operation
+from deepquantum.gates.qtensornetwork import StateVec2MPS,MPS2StateVec,TensorDecompAfterTwoQbitGate
+from deepquantum.gates.qTN_contract import _SingleGateLayer_TN_contract
 #import multiprocessing as mp
 '''
 所有layer必须有label标签，nqubits比特数，wires涉及哪几个比特，num_params参数数目，是否支持张量网络
@@ -49,24 +51,26 @@ class SingleGateLayer(Operation):
     
     def TN_contract(self, MPS:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
         lst1 = self._cal_single_gates()
-        if batch_mod==False:
-            for qbit in self.wires:
-                permute_shape = list( range(self.nqubits) )
-                permute_shape[qbit] = self.nqubits - 1
-                permute_shape[self.nqubits - 1] = qbit
-                MPS = MPS.permute(permute_shape).unsqueeze(-1)
-                MPS = ( lst1[qbit] @ MPS ).squeeze(-1)
-                MPS = MPS.permute(permute_shape)
-            return MPS
-        else:
-            for qbit in self.wires:
-                permute_shape = list( range(self.nqubits+1) )
-                permute_shape[qbit+1] = self.nqubits
-                permute_shape[self.nqubits] = qbit+1
-                MPS = MPS.permute(permute_shape).unsqueeze(-1)
-                MPS = ( lst1[qbit] @ MPS ).squeeze(-1)
-                MPS = MPS.permute(permute_shape)
-            return MPS
+        # if batch_mod==False:
+        #     for qbit in self.wires:
+        #         permute_shape = list( range(self.nqubits) )
+        #         permute_shape[qbit] = self.nqubits - 1
+        #         permute_shape[self.nqubits - 1] = qbit
+        #         MPS = MPS.permute(permute_shape).unsqueeze(-1)
+        #         MPS = ( lst1[qbit] @ MPS ).squeeze(-1)
+        #         MPS = MPS.permute(permute_shape)
+        #     return MPS
+        # else:
+        #     for qbit in self.wires:
+        #         permute_shape = list( range(self.nqubits+1) )
+        #         permute_shape[qbit+1] = self.nqubits
+        #         permute_shape[self.nqubits] = qbit+1
+        #         MPS = MPS.permute(permute_shape).unsqueeze(-1)
+        #         MPS = ( lst1[qbit] @ MPS ).squeeze(-1)
+        #         MPS = MPS.permute(permute_shape)
+        #     return MPS
+        MPS = _SingleGateLayer_TN_contract(self.nqubits, self.wires, lst1, MPS, batch_mod=batch_mod)
+        return MPS
     
     #def TN_operation_mp(self,MPS:List[torch.Tensor])->List[torch.Tensor]:
         # lst1 = self._cal_single_gates()
