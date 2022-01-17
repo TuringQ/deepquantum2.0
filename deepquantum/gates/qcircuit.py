@@ -77,8 +77,6 @@ class Circuit(object):
         return MPS
     
     
-    
-    
     def TN_contract_evolution(self, MPS:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
         if batch_mod == False:
             assert len(MPS.shape) == self.nqubits

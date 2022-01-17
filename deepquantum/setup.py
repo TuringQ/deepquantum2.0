@@ -12,11 +12,13 @@ Created on Wed Jan  5 14:26:20 2022
 python setup.py build_ext
 建议先安装最新版visual studio并安装C++相关组件，否则可能提示找不到一些文件
 '''
-from distutils.core import setup
+#from distutils.core import setup
+from setuptools import setup, Extension
 from Cython.Build import cythonize
 
+#language_level=3是指定python版本，到底是python3还是python2
 setup(
-    ext_modules=cythonize("./gates/qTN_contract.py")
+    ext_modules=cythonize("./gates/qTN_contract.py", language_level=3)
 )
 
 # setup(
