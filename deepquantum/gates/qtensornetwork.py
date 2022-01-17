@@ -4,18 +4,26 @@ Created on Fri Dec  3 08:49:16 2021
 
 @author: shish
 """
+# import sys
+# print(sys.path)
+
 import torch
 import torch.nn as nn
 import random
 import math
 import time
 from typing import List
-# import sys
-# sys.path.append(r'D:\git\deepquantum\deepquantum\gates')
 
 from deepquantum.gates.qTN_contract import _StateVec2MPS, _MatrixProductState,\
     _MPS2StateVec, _TensorDecompAfterTwoQbitGate, _TensorDecompAfterThreeQbitGate,\
     _MPS_inner_product, _MPS_expec, _Rho2MPS, _MPS2Rho, _MatrixProductDensityOperator
+# 若出现pyd文件无法import的情况，很可能是因为python版本不匹配
+# 比如python3.9版本下用cython生成pyd，该pyd文件就依赖python39.dll
+# 那么在低版本的python上就无法运行，因为找不到python39.dll
+# 用visual studio的dumpbin工具分析可知该pyd文件依赖python39.dll，kernel32.dll
+# VCRUNTIME140.dll，api-ms-win-crt-runtime-l1-1-0.dll这四个dll文件
+# import deepquantum.gates.qTN_contract as q
+# print(dir(q)) #查看导入的库中都有哪些api
 
 def StateVec2MPS(psi:torch.Tensor, N:int, d:int=2)->List[torch.Tensor]:
     return _StateVec2MPS(psi, N, d=d)
@@ -106,7 +114,7 @@ if __name__ == "__main__":
     '''
     12qubit时，SV2MPS平均要5ms，MPS2SV平均要3ms
     '''
-    N = 12 #19个就是上限了，20个比特我的电脑立刻死给你看
+    N = 8 #19个就是上限了，20个比特我的电脑立刻死给你看
     psi = nn.functional.normalize( torch.rand(1,2**N)+torch.rand(1,2**N)*1j,p=2,dim=1 )
     
     #psi = nn.functional.normalize( torch.ones(1,2**N)+torch.rand(1,2**N)*0.0j,p=2,dim=1 )
