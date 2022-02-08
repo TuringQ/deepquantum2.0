@@ -175,34 +175,73 @@ def partial_trace(rho, N, trace_lst):
         for idy in range(2**(N-i-1)):
             index_lst0.append(idx * (2**(N-i)) + idy)
             index_lst1.append(idx * (2**(N-i)) + idy + 2**(N-i-1))
-    
-    # for idx in range(2**i):
-    #     for idy in range(2**(N-i-1)):
-    #         index_lst1.append(idx * (2**(N-i)) + idy + 2**(N-i-1))
-    
-    # M0 = torch.empty( 2**(N-1), 2**N ) + 0j
-    # M1 = torch.empty( 2**(N-1), 2**N ) + 0j
-    
-    M0 = rho.index_select( 0, torch.tensor(index_lst0) )
-    M1 = rho.index_select( 0, torch.tensor(index_lst1) )
-    #for row in range(M0.shape[0]):  
-        #M0[row] = rho[index_lst0[row]]
-        #M1[row] = rho[index_lst1[row]]
-    
-    # M00 = torch.empty( 2**(N-1), 2**(N-1) ) + 0j
-    # M11 = torch.empty( 2**(N-1), 2**(N-1) ) + 0j
-    
-    M00 = M0.index_select( 1, torch.tensor(index_lst0) )
-    M11 = M1.index_select( 1, torch.tensor(index_lst1) )
-    # for i in range(M00.shape[1]):
-    #     M00[:,i] = M0[:,index_lst0[i]]
-    #     M11[:,i] = M1[:,index_lst1[i]]
+    # M0 = rho.index_select( 0, torch.tensor(index_lst0) )
+    # M1 = rho.index_select( 0, torch.tensor(index_lst1) )
+    M00 = rho.index_select( 0, torch.tensor(index_lst0) ).index_select( 1, torch.tensor(index_lst0) )
+    M11 = rho.index_select( 0, torch.tensor(index_lst1) ).index_select( 1, torch.tensor(index_lst1) )
     
     rho_nxt = M00 + M11
 
     new_lst = [ i-1 for i in trace_lst[1:] ] #trace掉一个qubit，他后面的qubit索引号要减1
     
     return partial_trace(rho_nxt, N-1, new_lst) + 0j
+
+
+
+
+def partial_trace_batched(rho_batch, N, trace_lst):
+    '''
+    用for循环批处理偏迹
+    '''
+    trace_lst.sort()#必须从小到大排列
+    assert rho_batch.ndim == 3
+    assert rho_batch.shape[1] == 2**N and rho_batch.shape[2] == 2**N
+    
+    for idx, rho in enumerate( rho_batch ):
+        new_rho = partial_trace(rho, N, trace_lst)
+        if idx == 0:
+            pt_rst = new_rho.unsqueeze(0)
+        else:
+            pt_rst = torch.cat((pt_rst,new_rho.unsqueeze(0)), dim=0)
+    
+    return pt_rst
+
+
+def partial_trace_batched2(rho_batch, N, trace_lst):
+    '''
+    令人意外的是index_select竟然比for循环批处理还慢
+    '''
+    trace_lst.sort()#必须从小到大排列
+    #输入合法性检测
+    assert rho_batch.ndim == 3
+    assert rho_batch.shape[1] == 2**N and rho_batch.shape[2] == 2**N
+    if len(trace_lst) != 0 and trace_lst[-1] > N - 1:
+        raise ValueError('element in trace_lst must be less than N-1')
+
+    rho_batch = rho_batch + 0j
+    if len(trace_lst) == 0:
+        return rho_batch
+    
+    i = int(trace_lst[0])
+    index_lst0 = [] #该列表记录当左右乘0态时，哪些行、列要被保留
+    index_lst1 = [] #该列表记录当左右乘1态时，哪些行、列要被保留
+    for idx in range(2**i):
+        for idy in range(2**(N-i-1)):
+            index_lst0.append(idx * (2**(N-i)) + idy)
+            index_lst1.append(idx * (2**(N-i)) + idy + 2**(N-i-1))
+
+    # M0 = rho_batch.index_select( 1, torch.tensor(index_lst0) )
+    # M1 = rho_batch.index_select( 1, torch.tensor(index_lst1) )
+    # M00 = rho_batch.index_select( 1, torch.tensor(index_lst0) ).index_select( 2, torch.tensor(index_lst0) )
+    # M11 = rho_batch.index_select( 1, torch.tensor(index_lst1) ).index_select( 2, torch.tensor(index_lst1) )
+    # rho_nxt = M00 + M11
+    
+    rho_nxt = rho_batch.index_select( 1, torch.tensor(index_lst0) ).index_select( 2, torch.tensor(index_lst0) )\
+            + rho_batch.index_select( 1, torch.tensor(index_lst1) ).index_select( 2, torch.tensor(index_lst1) )
+
+    new_lst = [ i-1 for i in trace_lst[1:] ] #trace掉一个qubit，他后面的qubit索引号要减1
+    
+    return partial_trace_batched(rho_nxt, N-1, new_lst) + 0j
 
 
 
@@ -254,23 +293,68 @@ def measure(n_qubit, state, ith=None):
         measure_rst.append(expval(state, Mi, rho=rho))
     return torch.tensor(measure_rst)
 
+
+
+
+def batched_kron(t1:torch.Tensor, t2:torch.Tensor)->torch.Tensor:
+    '''
+    用for循环批量化处理的张量积，张量的第一个维度为batch_size
+    '''
+    assert t1.ndim == t2.ndim #两个张量的维数必须相等
+    assert t1.shape[0] == t2.shape[0] #两个张量的batch_size必须相等
+    for idx, m1 in enumerate(t1):
+        m2 = t2[idx]
+        m = torch.kron(m1, m2)
+        if idx == 0:
+            rst = m.unsqueeze(0)
+        else:
+            rst = torch.cat((rst,m.unsqueeze(0)), dim=0)
+    assert rst.ndim == t1.ndim
+    # assert rst.shape[0] == t1.shape[0] and rst.shape[1] == t1.shape[1] * t2.shape[1] 
+    
+    return rst
+
+def batched_kron2(t1:torch.Tensor, t2:torch.Tensor)->torch.Tensor:
+    '''
+    比batched_kron更快速的批量化处理的张量积，张量的第一个维度为batch_size
+    仅支持维度为3的输入
+    '''
+    assert t1.ndim == 3 and t2.ndim == 3 #两个张量的维数必须都为3
+    assert t1.shape[0] == t2.shape[0] #两个张量的batch_size必须相等
+    
+    s1 = t1.shape
+    s2 = t2.shape
+    t1 = t1.reshape([s1[0], s1[1]*s1[2], 1]) #10X4X1
+    t2 = t2.reshape([s2[0], 1, s2[1]*s2[2]]) #10X1X4
+    
+    rst = (t1 @ t2).unsqueeze(-2) #10X4X1X4
+    rst = rst.reshape([s1[0], s1[1]*s1[2], s2[1], s2[2]]) #10X4X2X2
+    rst = rst.reshape([s1[0], s1[1], s1[2], s2[1], s2[2]]) #10X2x2X2X2
+    rst = rst.permute(0,1,3,2,4)
+    rst = rst.reshape([s1[0], s1[1]*s2[1], s1[2]*s2[2]]) #10X4X4
+    
+    assert rst.ndim == t1.ndim
+    
+    return rst
+
+
 if __name__ == '__main__':
     
-    N = 2
-    trace_lst = list(range(N-2))
-    #trace_lst = [0,3,5,8]
-    rm = torch.rand(2**N, 2**N)
-    rho = (1.0/torch.trace(rm))*rm +0j
-    state1 = torch.rand(2**N) +0j
+    # N = 2
+    # trace_lst = list(range(N-2))
+    # #trace_lst = [0,3,5,8]
+    # rm = torch.rand(2**N, 2**N)
+    # rho = (1.0/torch.trace(rm))*rm +0j
+    # state1 = torch.rand(2**N) +0j
 
-    print(rho)
-    # print(rho.shape)
-    value = measure(N, state=rho)
-    print(value)
+    # print(rho)
+    # # print(rho.shape)
+    # value = measure(N, state=rho)
+    # print(value)
 
-    print(state1)
-    value = measure(N, state=state1)
-    print(value)
+    # print(state1)
+    # value = measure(N, state=state1)
+    # print(value)
 
     # r1 = partial_trace_old(rho, N, trace_lst)
     # r2 = partial_trace(rho, N, trace_lst)
@@ -287,7 +371,31 @@ if __name__ == '__main__':
     # print('new/old:', (t3 - t2)/(t2 - t1))
     # #11qubit,13%,12qubit,7%,13qubit,3.5%
     # input('')
+    def batched_kron_test():
+        t1 = torch.rand(10,3,4)
+        t2 = torch.rand(10,2,6)
+        rst = batched_kron(t1,t2) - batched_kron2(t1,t2)
+        rst = torch.abs( rst.view(-1) ) < 1e-7
+        for each in rst:
+            if each == False:
+                raise ValueError("batched_kron_test error")
+        print("batched_kron_test测试通过")
+    batched_kron_test()
     
+    def partial_trace_batched_test():
+        N = 10
+        batchsize = 10
+        trace_lst = [8,1,7,2,5,4]
+        psi_batch = nn.functional.normalize( torch.rand(batchsize,1,2**N)+torch.rand(batchsize,1,2**N)*1j,p=2,dim=2 )
+        rho_batch = psi_batch.permute(0,2,1) @ psi_batch.conj()
+        rst = partial_trace_batched(rho_batch, N, trace_lst) - partial_trace_batched2(rho_batch, N, trace_lst)
+        rst = torch.abs( rst.view(-1) ) < 1e-7
+        for each in rst:
+            if each == False:
+                raise ValueError("partial_trace_batched_test error")
+        print("partial_trace_batched_test测试通过")
+    partial_trace_batched_test()
+    input('')
     
     
     
