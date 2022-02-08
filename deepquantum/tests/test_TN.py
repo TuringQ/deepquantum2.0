@@ -59,7 +59,7 @@ if 1:
     基于Tensor Network的量子线路态矢演化测试
     '''
     print('基于Tensor Network的量子线路态矢演化耗时测试:')    
-    N = 14    #量子线路的qubit总数
+    N = 10    #量子线路的qubit总数
     wires_lst = list(range(N))
     weight = torch.rand(21*N) * 2 * torch.pi
     
@@ -100,7 +100,7 @@ if 1:
         T1 = T1 + (t2 - t1)
         
         t3 = time.time()
-        #psi_f1 = (c2.U() @ psi.view(-1,1) ).view(1,-1) 
+        psi_f1 = (c2.U() @ psi.view(-1,1) ).view(1,-1) 
         t4 = time.time()
         T2 = T2 + (t4 - t3)
         
@@ -111,7 +111,7 @@ if 1:
         t5 = time.time()
         T3 = T3 + (t5 - t4)
     
-    #print(' U :',psi_f1)
+    print(' U :',psi_f1)
     print('TN1:',psi_f0)
     print('TN2:',psi_f2)
     #TN的优势在比特数很小时并不明显，甚至更差

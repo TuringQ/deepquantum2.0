@@ -19,7 +19,6 @@ import copy
 import time
 #import multiprocessing as mp
 
-
 class Circuit(object):
     def __init__(self, N):
         self.nqubits = N  # 总QuBit的个数
