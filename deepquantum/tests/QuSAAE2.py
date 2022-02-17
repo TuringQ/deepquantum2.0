@@ -7,7 +7,7 @@ import time
 #from deepquantum import Circuit
 from deepquantum.gates.qcircuit import Circuit
 import deepquantum.gates.qoperator as op
-from deepquantum.gates.qmath import partial_trace, partial_trace_batched, partial_trace_batched2, batched_kron, batched_kron2
+from deepquantum.gates.qmath import partial_trace, partial_trace_batched, partial_trace_batched2, partial_trace_batched3, batched_kron, batched_kron2
 # from deepquantum.utils import dag,measure_state,ptrace,multi_kron,encoding,expecval_ZI,measure
 
 '''
@@ -297,6 +297,8 @@ if __name__ == '__main__':
     discr = Q_Discriminator(N)
     
     batchsize = 64
+    # m = nn.functional.normalize( torch.rand(1,2**N)+torch.rand(1,2**N)*1j,p=2,dim=1 )
+    # g = nn.functional.normalize( torch.rand(1,2**dimg)+torch.rand(1,2**dimg)*1j,p=2,dim=1 )
     m = nn.functional.normalize( torch.rand(batchsize,1,2**N)+torch.rand(batchsize,1,2**N)*1j,p=2,dim=2 )
     g = nn.functional.normalize( torch.rand(batchsize,1,2**dimg)+torch.rand(batchsize,1,2**dimg)*1j,p=2,dim=2 )
     # g_rho = g.permute(1,0) @ g.conj()

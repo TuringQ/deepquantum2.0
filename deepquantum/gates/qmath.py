@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from typing import List
+import copy
 #from deepquantum.gates.qoperator import PauliZ
 import deepquantum as dq
 import time
@@ -189,7 +190,7 @@ def partial_trace(rho, N, trace_lst):
 
 
 
-def partial_trace_batched(rho_batch, N, trace_lst):
+def partial_trace_batched3(rho_batch, N, trace_lst):
     '''
     用for循环批处理偏迹
     '''
@@ -197,8 +198,46 @@ def partial_trace_batched(rho_batch, N, trace_lst):
     assert rho_batch.ndim == 3
     assert rho_batch.shape[1] == 2**N and rho_batch.shape[2] == 2**N
     
+    
     for idx, rho in enumerate( rho_batch ):
         new_rho = partial_trace(rho, N, trace_lst)
+        if idx == 0:
+            pt_rst = new_rho.unsqueeze(0)
+        else:
+            pt_rst = torch.cat((pt_rst,new_rho.unsqueeze(0)), dim=0)
+    
+    return pt_rst
+
+def partial_trace_batched(rho_batch, N, trace_lst):
+    '''
+    用for循环批处理偏迹，但是三重循环求列表的过程只需执行一次
+    '''
+    trace_lst.sort()#必须从小到大排列
+    assert rho_batch.ndim == 3
+    assert rho_batch.shape[1] == 2**N and rho_batch.shape[2] == 2**N
+    
+    rc_lst = []
+    trace_lst1 = copy.deepcopy(trace_lst)
+    while len(trace_lst1) > 0:
+        i = int(trace_lst1[0]) 
+        index_lst0 = []  #该列表记录当左右乘0态时，哪些行、列要被保留
+        index_lst1 = []  #该列表记录当左右乘1态时，哪些行、列要被保留
+        for idx in range(2**i):
+            for idy in range(2**(N-i-1)):
+                index_lst0.append(idx * (2**(N-i)) + idy)
+                index_lst1.append(idx * (2**(N-i)) + idy + 2**(N-i-1))
+        rc_lst.append( (index_lst0, index_lst1) )
+        
+        trace_lst1 = [ j-1 for j in trace_lst1[1:] ]
+        N = N - 1
+    
+    for idx, rho in enumerate( rho_batch ):
+        
+        new_rho = rho
+        for each in rc_lst:
+            new_rho = new_rho.index_select( 0, torch.tensor(each[0]) ).index_select( 1, torch.tensor(each[0]) )\
+                    + new_rho.index_select( 0, torch.tensor(each[1]) ).index_select( 1, torch.tensor(each[1]) )
+        
         if idx == 0:
             pt_rst = new_rho.unsqueeze(0)
         else:
@@ -225,23 +264,25 @@ def partial_trace_batched2(rho_batch, N, trace_lst):
     i = int(trace_lst[0])
     index_lst0 = [] #该列表记录当左右乘0态时，哪些行、列要被保留
     index_lst1 = [] #该列表记录当左右乘1态时，哪些行、列要被保留
+    # t1 = time.time()
     for idx in range(2**i):
         for idy in range(2**(N-i-1)):
             index_lst0.append(idx * (2**(N-i)) + idy)
             index_lst1.append(idx * (2**(N-i)) + idy + 2**(N-i-1))
-
+    # print("三重循环耗时：", time.time() - t1)
     # M0 = rho_batch.index_select( 1, torch.tensor(index_lst0) )
     # M1 = rho_batch.index_select( 1, torch.tensor(index_lst1) )
     # M00 = rho_batch.index_select( 1, torch.tensor(index_lst0) ).index_select( 2, torch.tensor(index_lst0) )
     # M11 = rho_batch.index_select( 1, torch.tensor(index_lst1) ).index_select( 2, torch.tensor(index_lst1) )
     # rho_nxt = M00 + M11
-    
+    # t1 = time.time()
     rho_nxt = rho_batch.index_select( 1, torch.tensor(index_lst0) ).index_select( 2, torch.tensor(index_lst0) )\
             + rho_batch.index_select( 1, torch.tensor(index_lst1) ).index_select( 2, torch.tensor(index_lst1) )
-
+    # print("三重循环耗时：", time.time() - t1)
     new_lst = [ i-1 for i in trace_lst[1:] ] #trace掉一个qubit，他后面的qubit索引号要减1
     
     return partial_trace_batched(rho_nxt, N-1, new_lst) + 0j
+
 
 
 
@@ -393,8 +434,31 @@ if __name__ == '__main__':
         for each in rst:
             if each == False:
                 raise ValueError("partial_trace_batched_test error")
-        print("partial_trace_batched_test测试通过")
+        rst = partial_trace_batched(rho_batch, N, trace_lst) - partial_trace_batched3(rho_batch, N, trace_lst)
+        rst = torch.abs( rst.view(-1) ) < 1e-7
+        for each in rst:
+            if each == False:
+                raise ValueError("partial_trace_batched_test error")
+        print("partial_trace_batched_test正确性测试通过")
     partial_trace_batched_test()
+    
+    def partial_trace_batched_time_test():
+        N = 10
+        batchsize = 64
+        trace_lst = [8,1,7,2,5,4,0]
+        psi_batch = nn.functional.normalize( torch.rand(batchsize,1,2**N)+torch.rand(batchsize,1,2**N)*1j,p=2,dim=2 )
+        rho_batch = psi_batch.permute(0,2,1) @ psi_batch.conj()
+        t1 = time.time()
+        partial_trace_batched(rho_batch, N, trace_lst)
+        print("partial_trace_batched耗时：", time.time() - t1)
+        t1 = time.time()
+        partial_trace_batched2(rho_batch, N, trace_lst)
+        print("partial_trace_batched2耗时：", time.time() - t1)
+        t1 = time.time()
+        partial_trace_batched3(rho_batch, N, trace_lst)
+        print("partial_trace_batched3耗时：", time.time() - t1)
+        return 0
+    partial_trace_batched_time_test()
     input('')
     
     
