@@ -4,10 +4,13 @@ import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 import time
+import timeit
+import random
 #from deepquantum import Circuit
 from deepquantum.gates.qcircuit import Circuit
 import deepquantum.gates.qoperator as op
 from deepquantum.gates.qmath import partial_trace, partial_trace_batched, partial_trace_batched2, partial_trace_batched3, batched_kron, batched_kron2
+from deepquantum.gates.qtensornetwork import MatrixProductDensityOperator
 # from deepquantum.utils import dag,measure_state,ptrace,multi_kron,encoding,expecval_ZI,measure
 
 '''
@@ -144,8 +147,49 @@ class QuDe(nn.Module):
         cir.XYZLayer(wires_lst, w[9*self.n_qubits:12*self.n_qubits])
         cir.ring_of_cnot(wires_lst)
         cir.XYZLayer(wires_lst, w[12*self.n_qubits:15*self.n_qubits])
-        U = cir.U()
-        decoder_rst = U @ x @ U.permute(1,0).conj()
+        '''
+        (num_layers - 1)*(2^3N) + 0.5*(num_layers-1)(2^2N) + 0.5*(num_layers-1)(2^3N+2^2N)... + 2*(2^3N)*batch_size
+        =(num_layers - 1)*(1.5*2^3N + 2^2N) + 2*(2^3N)*batch_size
+        
+        2*2^(2N+1)*batch_size*num_gates = 2*2^(2N+1)*batch_size*num_layers*N
+        
+        batch_size为1：
+        10qubits，常规方法0.57s，张量网络0.45s
+        11qubits，常规方法3.57s，张量网络1.80s
+        12qubits，常规方法18.5s，张量网络8.10s
+        
+        batch_size为16：
+        10qubits，常规方法1.15s，张量网络6.83s
+        11qubits，常规方法8.70s，张量网络内存溢出，batch缩小为8，耗时16.6s
+        总结：由于张量网络必须一个门一个门地计算演化，每个门在计算时都要乘上batch_size，而常规方法可以先把所有门的矩阵乘起来
+        得到一个U，这个过程不涉及任何batch_size，最后一步与密度矩阵相乘才带上batch_size.所以基于张量网络的密度矩阵只适合用在
+        batch_size很小，qubit数目多，门的数目（门的数目≈层数*qubit数）不太大的情况下。
+        
+        数学的表述：必须满足2^N >> batch_size * N或者2^N >> num_gates,基于张量网络的密度矩阵演化才有优势。
+        
+        但是考虑到torch针对batched tensor运算比python for循环快得多，所以具体用常规方法还是张量网络方法计算密度矩阵的演化，请具体情况具体分析。
+        '''
+        #=======常规方法======
+        # t6 = time.time()
+        # U = cir.U()
+        # decoder_rst = U @ x @ U.permute(1,0).conj()
+        # print("直接乘耗时：",time.time() - t6)
+        #====================
+        
+            
+        
+        if x.ndim == 3:
+            #有batch
+            batch_size = x.shape[0]
+            x = MatrixProductDensityOperator(x, self.n_qubits)
+            x = cir.TN_contract_evolution(x, batch_mod=True)
+            decoder_rst = x.reshape([batch_size, 2**self.n_qubits, 2**self.n_qubits])
+        elif x.ndim == 2:
+            #无batch
+            x = MatrixProductDensityOperator(x, self.n_qubits)
+            x = cir.TN_contract_evolution(x, batch_mod=False)
+            decoder_rst = x.reshape([2**self.n_qubits, 2**self.n_qubits])
+        
         return decoder_rst
         
         
@@ -296,7 +340,7 @@ if __name__ == '__main__':
     decod = Q_Decoder(dimA+dimg)
     discr = Q_Discriminator(N)
     
-    batchsize = 64
+    batchsize = 1
     # m = nn.functional.normalize( torch.rand(1,2**N)+torch.rand(1,2**N)*1j,p=2,dim=1 )
     # g = nn.functional.normalize( torch.rand(1,2**dimg)+torch.rand(1,2**dimg)*1j,p=2,dim=1 )
     m = nn.functional.normalize( torch.rand(batchsize,1,2**N)+torch.rand(batchsize,1,2**N)*1j,p=2,dim=2 )

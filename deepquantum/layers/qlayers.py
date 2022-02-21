@@ -13,7 +13,7 @@ import copy
 from deepquantum.gates import multi_kron
 from deepquantum.gates.qoperator import Hadamard,rx,ry,rz,rxx,ryy,rzz,cnot,cz,SWAP,Operation
 from deepquantum.gates.qtensornetwork import StateVec2MPS,MPS2StateVec,TensorDecompAfterTwoQbitGate
-from deepquantum.gates.qTN_contract import _SingleGateLayer_TN_contract
+from deepquantum.gates.qTN_contract import _SingleGateLayer_TN_contract, _SingleGateLayer_TN_contract_Rho
 #import multiprocessing as mp
 '''
 所有layer必须有label标签，nqubits比特数，wires涉及哪几个比特，num_params参数数目，是否支持张量网络
@@ -72,33 +72,10 @@ class SingleGateLayer(Operation):
         MPS = _SingleGateLayer_TN_contract(self.nqubits, self.wires, lst1, MPS, batch_mod=batch_mod)
         return MPS
     
-    #def TN_operation_mp(self,MPS:List[torch.Tensor])->List[torch.Tensor]:
-        # lst1 = self._cal_single_gates()
-        # pool = mp.Pool(processes=8)
-        # p_lst = []
-        # for qbit in self.wires:
-            
-        #     #MPS[qbit] = torch.einsum('ab,bcd->acd',[lst1[qbit],MPS[qbit]])
-        #     p_lst.append( pool.apply_async(torch.einsum,args=('ab,bcd->acd',[lst1[qbit],MPS[qbit]])) )
-        #     #p = mp.Process(target=torch.einsum,args=('ab,bcd->acd',[lst1[qbit],MPS[qbit]]))
-        # pool.close()
-        # pool.join()
-        # for i,each in enumerate( p_lst ):
-        #     qbit = self.wires[i]
-        #     MPS[qbit] = each.get()
-        
-        # p_lst = []
-        # for qbit in self.wires:
-        #     p = mp.Process(target=torch.einsum,args=('ab,bcd->acd',[lst1[qbit],MPS[qbit]]))
-        #     p_lst.append(p)
-        #     p.start()
-        # for p in p_lst:
-        #     p.join()
-        # for i,p in enumerate(p_lst):
-        #     qbit = self.wires[i]
-        #     MPS[qbit] = p.get()
-        #     p.close()
-        # return MPS
+    def TN_contract_Rho(self, MPDO:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
+        lst1 = self._cal_single_gates()
+        MPDO = _SingleGateLayer_TN_contract_Rho(self.nqubits, self.wires, lst1, MPDO, batch_mod=batch_mod)
+        return MPDO
     
     
 
@@ -767,6 +744,21 @@ class ring_of_cnot(TwoQbitGateLayer):
         #     MPS = cnot1.TN_contract(MPS)
         return MPS
     
+    def TN_contract_Rho(self, MPDO:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
+        if self.wires != list( range(self.nqubits) ):
+            raise ValueError('ring_of_cnot,TN_contract_Rho error')
+        L = len(self.wires)
+        
+        if self.nqubits == 2:
+            MPDO = cnot( 2,[self.wires[0],self.wires[1]] ).TN_contract_Rho(MPDO, batch_mod=batch_mod)
+            return MPDO
+        
+        for i in range(L):
+            cqbit = self.wires[i]
+            tqbit = self.wires[(i+1)%L]
+            MPDO = cnot(self.nqubits,[cqbit,tqbit]).TN_contract_Rho(MPDO, batch_mod=batch_mod)
+        return MPDO
+    
     
     
     
@@ -878,6 +870,21 @@ class ring_of_cnot_dagger(TwoQbitGateLayer):
             MPS = cnot(self.nqubits,[cqbit,tqbit]).TN_contract(MPS, batch_mod=batch_mod)
         return MPS
     
+    
+    def TN_contract_Rho(self, MPDO:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
+        if self.wires != list( range(self.nqubits) ):
+            raise ValueError('ring_of_cnot_dagger,TN_contract_Rho error')
+        L = len(self.wires)
+        
+        if self.nqubits == 2:
+            MPDO = cnot( 2,[self.wires[0],self.wires[1]] ).TN_contract_Rho(MPDO, batch_mod=batch_mod)
+            return MPDO
+        
+        for i in range(L-1,-1,-1):
+            cqbit = self.wires[i]
+            tqbit = self.wires[(i+1)%L]
+            MPDO = cnot(self.nqubits,[cqbit,tqbit]).TN_contract_Rho(MPDO, batch_mod=batch_mod)
+        return MPDO
     
     def operation_dagger(self):
         return ring_of_cnot(self.nqubits, self.wires)
