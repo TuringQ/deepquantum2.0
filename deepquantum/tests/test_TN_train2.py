@@ -235,7 +235,7 @@ class qcir(torch.jit.ScriptModule):
         s = MPS_batch.shape
         MPS_batch = MPS_batch.reshape(s[0],-1,1)
         MPS_batch0 = MPS_batch0.reshape(s[0],1,-1)
-        rst = (MPS_batch0 @ MPS_batch).real
+        rst = (MPS_batch0.conj() @ MPS_batch).real
         rst = rst.squeeze(-1)
         #rst = rst.squeeze(-1)
         return rst

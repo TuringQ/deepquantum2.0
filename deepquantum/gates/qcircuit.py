@@ -61,6 +61,9 @@ class Circuit(object):
         return U_overall
     
     def TN_evolution(self, MPS:List[torch.Tensor])->List[torch.Tensor]:
+        '''
+        已废弃
+        '''
         if len(MPS) != self.nqubits:
             raise ValueError('TN_evolution:MPS tensor list must have N elements!')
         #MPS1 = copy.deepcopy(MPS)
@@ -78,23 +81,51 @@ class Circuit(object):
     
     def TN_contract_evolution(self, MPS:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
         if batch_mod == False:
-            assert len(MPS.shape) == self.nqubits
-        else:
-            assert len(MPS.shape) == self.nqubits+1
-        for idx,oper in enumerate(self.gate):
-            if oper.supportTN == True:
-                #t = time.time()
-                MPS = oper.TN_contract(MPS, batch_mod=batch_mod)
-                #print(MPS.requires_grad)
-                #print('consume time: ',time.time() - t)
+            # print(len(MPS.shape))
+            assert len(MPS.shape) == self.nqubits or len(MPS.shape) == 2*self.nqubits
+            if len(MPS.shape) == self.nqubits:
+                is_rho = False
+            elif len(MPS.shape) == 2*self.nqubits:
+                is_rho = True
             else:
-                raise ValueError(str(oper.info()['label'])
-                                 +'-TN_contract:some parts of circuit do NOT support Tensor Network')
-        return MPS
+                assert False
+        else:
+            assert len(MPS.shape) == self.nqubits + 1 or len(MPS.shape) == 2*self.nqubits + 1
+            if len(MPS.shape) == self.nqubits + 1:
+                is_rho = False
+            elif len(MPS.shape) == 2*self.nqubits + 1:
+                is_rho = True
+            else:
+                assert False
+                
+        if is_rho == False:
+            for idx,oper in enumerate(self.gate):
+                if oper.supportTN == True:
+                    MPS = oper.TN_contract(MPS, batch_mod=batch_mod)
+                else:
+                    raise ValueError(str(oper.info()['label'])
+                                     +'-TN_contract:some parts of circuit do NOT support Tensor Network')
+            return MPS
+        else:
+            # print("MPDO演化")
+            MPDO = MPS
+            for idx,oper in enumerate(self.gate):
+                # print(idx)
+                if oper.supportTN == True:
+                    # t1 = time.time()
+                    MPDO = oper.TN_contract_Rho(MPDO, batch_mod=batch_mod)   
+                    # print(idx,"  ",time.time() - t1)
+                else:
+                    raise ValueError(str(oper.info()['label'])
+                                     +'-TN_contract_Rho:some parts of circuit do NOT support Tensor Network')
+            return MPDO
     
     
     
     def cir_expectation(self, init_state,M,TN=True):
+        '''
+        已废弃或需更新
+        '''
         if init_state.shape[0] != 1:
             raise ValueError('cir_expectation init_state shape error')
         if init_state.shape[1] != int(2**self.nqubits):

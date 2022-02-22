@@ -10,10 +10,10 @@ import copy
 
 from deepquantum.gates.qmath import  IsUnitary, IsHermitian, multi_kron
 from deepquantum.gates.qtensornetwork import TensorDecompAfterTwoQbitGate, TensorDecompAfterThreeQbitGate
-from deepquantum.gates.qTN_contract import _SingleGateOperation_TN_contract,\
+from deepquantum.gates.qTN_contract import _SingleGateOperation_TN_contract, _SingleGateOperation_TN_contract_Rho, _TwoQbitGate_TN_contract_Rho,\
     _rxx_TN_contract, _ryy_TN_contract, _rzz_TN_contract, _cnot_TN_contract,\
     _cz_TN_contract, _cphase_TN_contract, _cu3_TN_contract, _SWAP_TN_contract,\
-    _toffoli_TN_contract
+    _toffoli_TN_contract, _toffoli_TN_contract_Rho
 
 class Operator(object):
     
@@ -130,31 +130,23 @@ class SingleGateOperation(Operation):
     
     
     def TN_contract(self, MPS:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
-        # if self.nqubits == -1 or self.wires == -1:
-        #     raise ValueError("SingleGateOperation input error! cannot TN_contract")
-        # if batch_mod==False:
-        #     permute_shape = list( range(self.nqubits) )
-        #     permute_shape[self.wires] = self.nqubits - 1
-        #     permute_shape[self.nqubits - 1] = self.wires
-        #     MPS = MPS.permute(permute_shape).unsqueeze(-1)
-        #     MPS = ( self.matrix @ MPS ).squeeze(-1)
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     return MPS
-        # else:
-        #     permute_shape = list( range(self.nqubits+1) )
-        #     permute_shape[self.wires+1] = self.nqubits
-        #     permute_shape[self.nqubits] = self.wires+1
-        #     MPS = MPS.permute(permute_shape).unsqueeze(-1)
-        #     MPS = ( self.matrix @ MPS ).squeeze(-1)
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     return MPS
         MPS = _SingleGateOperation_TN_contract(self.nqubits, self.wires, self.matrix,\
                                          MPS, batch_mod=batch_mod)  
         return MPS
+    
+    def TN_contract_Rho(self, MPDO:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
+        MPDO = _SingleGateOperation_TN_contract_Rho(self.nqubits, self.wires, self.matrix,\
+                                                    MPDO, batch_mod=batch_mod)
+        # print("TN::",MPDO)
+        return MPDO
 
-
+class TwoQbitGateOperation(Operation):
+    
+    def TN_contract_Rho(self, MPDO:torch.Tensor, batch_mod:bool=False):
+        MPDO = _TwoQbitGate_TN_contract_Rho(self.nqubits, self.wires, self.matrix,\
+                                             MPDO, batch_mod=batch_mod)
+        # print("asdasdasd",MPDO.reshape([2**self.nqubits, 2**self.nqubits]))
+        return MPDO
 
 
 class Observable(Operator):
@@ -608,7 +600,7 @@ class u3(SingleGateOperation):
 
 
 
-class rxx(Operation):
+class rxx(TwoQbitGateOperation):
     # label = "Rxx"
     # num_params = 1
     # num_wires = 2           
@@ -651,74 +643,7 @@ class rxx(Operation):
     def TN_contract(self, MPS:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
         MPS = _rxx_TN_contract(self.nqubits, self.wires, self.matrix, MPS, batch_mod=batch_mod)
         return MPS
-        # if self.nqubits == -1 or self.wires == -1:
-        #     raise ValueError("rxx gate input error! cannot TN_contract")
-        # cqbit = self.wires[0]
-        # tqbit = self.wires[1]
-        # assert cqbit != tqbit
         
-        # if batch_mod == False:
-        #     assert len(MPS.shape) == self.nqubits
-        #     permute_shape = list( range(self.nqubits) )
-        #     permute_shape.remove(cqbit)
-        #     permute_shape.remove(tqbit)
-        #     permute_shape = permute_shape + [cqbit, tqbit]
-                
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     s = list( MPS.shape )
-        #     s[-2] = s[-2]*s[-1]
-        #     s[-1] = 1
-        #     MPS = MPS.reshape(s)
-            
-        #     MPS = self.matrix @ MPS
-            
-        #     MPS = MPS.view([2]*self.nqubits)
-            
-        #     permute_shape = list( range(self.nqubits) )
-        #     permute_shape.pop()
-        #     permute_shape.pop()
-        #     #permute_shape = permute_shape[:-2]
-        #     if cqbit < tqbit:
-        #         permute_shape.insert(cqbit,self.nqubits-2)
-        #         permute_shape.insert(tqbit,self.nqubits-1)
-        #     else:
-        #         permute_shape.insert(tqbit,self.nqubits-1)
-        #         permute_shape.insert(cqbit,self.nqubits-2)
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     return MPS
-        # else:
-        #     assert len(MPS.shape) == self.nqubits+1
-        #     permute_shape = list( range(self.nqubits+1) )
-        #     permute_shape.remove(cqbit+1)
-        #     permute_shape.remove(tqbit+1)
-        #     permute_shape = permute_shape + [cqbit+1, tqbit+1]
-                
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     s = list( MPS.shape )
-        #     s[-2] = s[-2]*s[-1]
-        #     s[-1] = 1
-        #     MPS = MPS.reshape(s)
-            
-        #     MPS = self.matrix @ MPS
-            
-        #     MPS = MPS.view([s[0]]+[2]*self.nqubits)
-            
-        #     permute_shape = list( range(self.nqubits+1) )
-        #     permute_shape.pop()
-        #     permute_shape.pop()
-        #     #permute_shape = permute_shape[:-2]
-        #     if cqbit < tqbit:
-        #         permute_shape.insert(cqbit+1,self.nqubits-1)
-        #         permute_shape.insert(tqbit+1,self.nqubits)
-        #     else:
-        #         permute_shape.insert(tqbit+1,self.nqubits)
-        #         permute_shape.insert(cqbit+1,self.nqubits-1)
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     return MPS
     
     
     def operation_dagger(self):
@@ -743,7 +668,7 @@ class rxx(Operation):
 
 
 
-class ryy(Operation):
+class ryy(TwoQbitGateOperation):
     # label = "Ryy"
     # num_params = 1
     # num_wires = 2           
@@ -789,74 +714,7 @@ class ryy(Operation):
     def TN_contract(self, MPS:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
         MPS = _ryy_TN_contract(self.nqubits, self.wires, self.matrix, MPS, batch_mod=batch_mod)
         return MPS
-        # if self.nqubits == -1 or self.wires == -1:
-        #     raise ValueError("rxx gate input error! cannot TN_contract")
-        # cqbit = self.wires[0]
-        # tqbit = self.wires[1]
-        # assert cqbit != tqbit
         
-        # if batch_mod == False:
-        #     assert len(MPS.shape) == self.nqubits
-        #     permute_shape = list( range(self.nqubits) )
-        #     permute_shape.remove(cqbit)
-        #     permute_shape.remove(tqbit)
-        #     permute_shape = permute_shape + [cqbit, tqbit]
-                
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     s = list( MPS.shape )
-        #     s[-2] = s[-2]*s[-1]
-        #     s[-1] = 1
-        #     MPS = MPS.reshape(s)
-            
-        #     MPS = self.matrix @ MPS
-            
-        #     MPS = MPS.view([2]*self.nqubits)
-            
-        #     permute_shape = list( range(self.nqubits) )
-        #     permute_shape.pop()
-        #     permute_shape.pop()
-        #     #permute_shape = permute_shape[:-2]
-        #     if cqbit < tqbit:
-        #         permute_shape.insert(cqbit,self.nqubits-2)
-        #         permute_shape.insert(tqbit,self.nqubits-1)
-        #     else:
-        #         permute_shape.insert(tqbit,self.nqubits-1)
-        #         permute_shape.insert(cqbit,self.nqubits-2)
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     return MPS
-        # else:
-        #     assert len(MPS.shape) == self.nqubits+1
-        #     permute_shape = list( range(self.nqubits+1) )
-        #     permute_shape.remove(cqbit+1)
-        #     permute_shape.remove(tqbit+1)
-        #     permute_shape = permute_shape + [cqbit+1, tqbit+1]
-                
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     s = list( MPS.shape )
-        #     s[-2] = s[-2]*s[-1]
-        #     s[-1] = 1
-        #     MPS = MPS.reshape(s)
-            
-        #     MPS = self.matrix @ MPS
-            
-        #     MPS = MPS.view([s[0]]+[2]*self.nqubits)
-            
-        #     permute_shape = list( range(self.nqubits+1) )
-        #     permute_shape.pop()
-        #     permute_shape.pop()
-        #     #permute_shape = permute_shape[:-2]
-        #     if cqbit < tqbit:
-        #         permute_shape.insert(cqbit+1,self.nqubits-1)
-        #         permute_shape.insert(tqbit+1,self.nqubits)
-        #     else:
-        #         permute_shape.insert(tqbit+1,self.nqubits)
-        #         permute_shape.insert(cqbit+1,self.nqubits-1)
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     return MPS
     
     def operation_dagger(self):
         return ryy(-1*self.params, self.nqubits, self.wires)
@@ -881,7 +739,7 @@ class ryy(Operation):
 
 
 
-class rzz(Operation):
+class rzz(TwoQbitGateOperation):
     # label = "Rzz"
     # num_params = 1
     # num_wires = 2           
@@ -925,74 +783,7 @@ class rzz(Operation):
     def TN_contract(self, MPS:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
         MPS = _rzz_TN_contract(self.nqubits, self.wires, self.matrix, MPS, batch_mod=batch_mod)
         return MPS
-        # if self.nqubits == -1 or self.wires == -1:
-        #     raise ValueError("rxx gate input error! cannot TN_contract")
-        # cqbit = self.wires[0]
-        # tqbit = self.wires[1]
-        # assert cqbit != tqbit
         
-        # if batch_mod == False:
-        #     assert len(MPS.shape) == self.nqubits
-        #     permute_shape = list( range(self.nqubits) )
-        #     permute_shape.remove(cqbit)
-        #     permute_shape.remove(tqbit)
-        #     permute_shape = permute_shape + [cqbit, tqbit]
-                
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     s = list( MPS.shape )
-        #     s[-2] = s[-2]*s[-1]
-        #     s[-1] = 1
-        #     MPS = MPS.reshape(s)
-            
-        #     MPS = self.matrix @ MPS
-            
-        #     MPS = MPS.view([2]*self.nqubits)
-            
-        #     permute_shape = list( range(self.nqubits) )
-        #     permute_shape.pop()
-        #     permute_shape.pop()
-        #     #permute_shape = permute_shape[:-2]
-        #     if cqbit < tqbit:
-        #         permute_shape.insert(cqbit,self.nqubits-2)
-        #         permute_shape.insert(tqbit,self.nqubits-1)
-        #     else:
-        #         permute_shape.insert(tqbit,self.nqubits-1)
-        #         permute_shape.insert(cqbit,self.nqubits-2)
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     return MPS
-        # else:
-        #     assert len(MPS.shape) == self.nqubits+1
-        #     permute_shape = list( range(self.nqubits+1) )
-        #     permute_shape.remove(cqbit+1)
-        #     permute_shape.remove(tqbit+1)
-        #     permute_shape = permute_shape + [cqbit+1, tqbit+1]
-                
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     s = list( MPS.shape )
-        #     s[-2] = s[-2]*s[-1]
-        #     s[-1] = 1
-        #     MPS = MPS.reshape(s)
-            
-        #     MPS = self.matrix @ MPS
-            
-        #     MPS = MPS.view([s[0]]+[2]*self.nqubits)
-            
-        #     permute_shape = list( range(self.nqubits+1) )
-        #     permute_shape.pop()
-        #     permute_shape.pop()
-        #     #permute_shape = permute_shape[:-2]
-        #     if cqbit < tqbit:
-        #         permute_shape.insert(cqbit+1,self.nqubits-1)
-        #         permute_shape.insert(tqbit+1,self.nqubits)
-        #     else:
-        #         permute_shape.insert(tqbit+1,self.nqubits)
-        #         permute_shape.insert(cqbit+1,self.nqubits-1)
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     return MPS
     
     
     def operation_dagger(self):
@@ -1014,15 +805,7 @@ class rzz(Operation):
 
 
 
-class cnot(Operation):
-    # label = "cnot"
-    # num_params = 0
-    # num_wires = 2          
-    # self_inverse = True
-    # matrix = torch.tensor([[1,0,0,0],\
-    #                        [0,1,0,0],\
-    #                        [0,0,0,1],\
-    #                        [0,0,1,0]]) + 0j
+class cnot(TwoQbitGateOperation):
     
     def __init__(self,N=-1,wires=-1):
         #wires以list形式输入
@@ -1073,41 +856,11 @@ class cnot(Operation):
             #融合后的张量恢复成两个张量
             MPS[upqbit],MPS[downqbit] = TensorDecompAfterTwoQbitGate(temp)
             
-            # temp = MPS[upqbit].unsqueeze(1) @ MPS[downqbit].unsqueeze(0)
-            # if self.wires[0] == upqbit:
-            #     t = copy.deepcopy( temp[1,0,:,:] )
-            #     temp[1,0,:,:] = temp[1,1,:,:]
-            #     temp[1,1,:,:] = t
-            # else:
-            #     t = copy.deepcopy( temp[0,1,:,:] )
-            #     temp[0,1,:,:] = temp[1,1,:,:]
-            #     temp[1,1,:,:] = t
-            # MPS[upqbit],MPS[downqbit] = TensorDecompAfterTwoQbitGate(temp)
-        # elif (downqbit+1)%self.nqubits==upqbit:
-        #     #试验一下
-        #     temp = (MPS[downqbit].unsqueeze(1) @ MPS[upqbit].unsqueeze(0) ).permute(2,3,0,1)
-        #     shape = temp.shape
-        #     temp = temp.view(shape[0],shape[1],shape[2]*shape[3],1)
-        #     if self.wires[0] == downqbit:
-        #         temp = cnot().matrix @ temp
-        #     else:
-        #         temp = cnot(2,[1,0]).U_expand() @ temp
-        #     temp = temp.view(shape[0],shape[1],shape[2],shape[3])
-        #     temp = temp.permute(2,3,0,1)
-        #     #融合后的张量恢复成两个张量
-        #     MPS[downqbit],MPS[upqbit] = TensorDecompAfterTwoQbitGate(temp,bond_dim=1)
-        #     print('lalal: ',MPS[downqbit].shape,MPS[upqbit].shape)
+            
         else:
             #当cnot门横跨多个量子比特时，需要用SWAP将控制、目标比特搬运至最近邻
             for i in range(upqbit,downqbit-1):
-                # temp = (MPS[i].unsqueeze(1) @ MPS[i+1].unsqueeze(0) ).permute(2,3,0,1)
-                # shape = temp.shape
-                # temp = temp.view(shape[0],shape[1],shape[2]*shape[3],1)
-                # temp = SWAP().matrix @ temp
-                # temp = temp.view(shape[0],shape[1],shape[2],shape[3])
-                # temp = temp.permute(2,3,0,1)
-                # #融合后的张量恢复成两个张量
-                # MPS[i],MPS[i+1] = TensorDecompAfterTwoQbitGate(temp)
+                
                 MPS = SWAP(self.nqubits,[i,i+1]).TN_operation(MPS)
             
             temp = (MPS[downqbit-1].unsqueeze(1) @ MPS[downqbit].unsqueeze(0) ).permute(2,3,0,1)
@@ -1121,27 +874,11 @@ class cnot(Operation):
             temp = temp.permute(2,3,0,1)
             #融合后的张量恢复成两个张量
             MPS[downqbit-1],MPS[downqbit] = TensorDecompAfterTwoQbitGate(temp)
-            # temp = MPS[downqbit-1].unsqueeze(1) @ MPS[downqbit].unsqueeze(0)
-            # if self.wires[0] == upqbit:
-            #     t = copy.deepcopy( temp[1,0,:,:] )
-            #     temp[1,0,:,:] = temp[1,1,:,:]
-            #     temp[1,1,:,:] = t
-            # else:
-            #     t = copy.deepcopy( temp[0,1,:,:] )
-            #     temp[0,1,:,:] = temp[1,1,:,:]
-            #     temp[1,1,:,:] = t
-            # MPS[downqbit-1],MPS[downqbit] = TensorDecompAfterTwoQbitGate(temp)
+           
             
             
             for i in range(downqbit-1,upqbit,-1):
-                # temp = (MPS[i-1].unsqueeze(1) @ MPS[i].unsqueeze(0) ).permute(2,3,0,1)
-                # shape = temp.shape
-                # temp = temp.view(shape[0],shape[1],shape[2]*shape[3],1)
-                # temp = SWAP().matrix @ temp
-                # temp = temp.view(shape[0],shape[1],shape[2],shape[3])
-                # temp = temp.permute(2,3,0,1)
-                # #融合后的张量恢复成两个张量
-                # MPS[i-1],MPS[i] = TensorDecompAfterTwoQbitGate(temp)  
+                
                 MPS = SWAP(self.nqubits,[i-1,i]).TN_operation(MPS)
         return MPS
     
@@ -1149,74 +886,7 @@ class cnot(Operation):
     def TN_contract(self, MPS:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
         MPS = _cnot_TN_contract(self.nqubits, self.wires, self.matrix, MPS, batch_mod=batch_mod)
         return MPS
-        # if self.nqubits == -1 or self.wires == -1:
-        #     raise ValueError("cnot gate input error! cannot TN_contract")
-        # cqbit = self.wires[0]
-        # tqbit = self.wires[1]
-        # assert cqbit != tqbit
         
-        # if batch_mod == False:
-        #     assert len(MPS.shape) == self.nqubits
-        #     permute_shape = list( range(self.nqubits) )
-        #     permute_shape.remove(cqbit)
-        #     permute_shape.remove(tqbit)
-        #     permute_shape = permute_shape + [cqbit, tqbit]
-                
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     s = list( MPS.shape )
-        #     s[-2] = s[-2]*s[-1]
-        #     s[-1] = 1
-        #     MPS = MPS.reshape(s)
-            
-        #     MPS = self.matrix @ MPS
-            
-        #     MPS = MPS.view([2]*self.nqubits)
-            
-        #     permute_shape = list( range(self.nqubits) )
-        #     permute_shape.pop()
-        #     permute_shape.pop()
-        #     #permute_shape = permute_shape[:-2]
-        #     if cqbit < tqbit:
-        #         permute_shape.insert(cqbit,self.nqubits-2)
-        #         permute_shape.insert(tqbit,self.nqubits-1)
-        #     else:
-        #         permute_shape.insert(tqbit,self.nqubits-1)
-        #         permute_shape.insert(cqbit,self.nqubits-2)
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     return MPS
-        # else:
-        #     assert len(MPS.shape) == self.nqubits+1
-        #     permute_shape = list( range(self.nqubits+1) )
-        #     permute_shape.remove(cqbit+1)
-        #     permute_shape.remove(tqbit+1)
-        #     permute_shape = permute_shape + [cqbit+1, tqbit+1]
-                
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     s = list( MPS.shape )
-        #     s[-2] = s[-2]*s[-1]
-        #     s[-1] = 1
-        #     MPS = MPS.reshape(s)
-            
-        #     MPS = self.matrix @ MPS
-            
-        #     MPS = MPS.view([s[0]]+[2]*self.nqubits)
-            
-        #     permute_shape = list( range(self.nqubits+1) )
-        #     permute_shape.pop()
-        #     permute_shape.pop()
-        #     #permute_shape = permute_shape[:-2]
-        #     if cqbit < tqbit:
-        #         permute_shape.insert(cqbit+1,self.nqubits-1)
-        #         permute_shape.insert(tqbit+1,self.nqubits)
-        #     else:
-        #         permute_shape.insert(tqbit+1,self.nqubits)
-        #         permute_shape.insert(cqbit+1,self.nqubits-1)
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     return MPS
     
     
     def operation_dagger(self):
@@ -1235,15 +905,7 @@ class cnot(Operation):
 
 
 
-class cz(Operation):
-    # label = "cz"
-    # num_params = 0
-    # num_wires = 2          
-    # self_inverse = True
-    # matrix = torch.tensor([[1,0,0,0],\
-    #                        [0,1,0,0],\
-    #                        [0,0,1,0],\
-    #                        [0,0,0,-1]]) + 0j
+class cz(TwoQbitGateOperation):
     
     def __init__(self,N=-1,wires=-1):
         #wires以list形式输入
@@ -1303,73 +965,7 @@ class cz(Operation):
     def TN_contract(self, MPS:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
         MPS = _cz_TN_contract(self.nqubits, self.wires, self.matrix, MPS, batch_mod=batch_mod)
         return MPS
-        # if self.nqubits == -1 or self.wires == -1:
-        #     raise ValueError("cz gate input error! cannot TN_contract")
-        # cqbit = self.wires[0]
-        # tqbit = self.wires[1]
-        # assert cqbit != tqbit
         
-        # if batch_mod == False:
-        #     assert len(MPS.shape) == self.nqubits
-        #     permute_shape = list( range(self.nqubits) )
-        #     permute_shape.remove(cqbit)
-        #     permute_shape.remove(tqbit)
-        #     permute_shape = permute_shape + [cqbit, tqbit]
-                
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     s = list( MPS.shape )
-        #     s[-2] = s[-2]*s[-1]
-        #     s[-1] = 1
-        #     MPS = MPS.reshape(s)
-            
-        #     MPS = self.matrix @ MPS
-            
-        #     MPS = MPS.view([2]*self.nqubits)
-            
-        #     permute_shape = list( range(self.nqubits) )
-        #     permute_shape.pop()
-        #     permute_shape.pop()
-        #     if cqbit < tqbit:
-        #         permute_shape.insert(cqbit,self.nqubits-2)
-        #         permute_shape.insert(tqbit,self.nqubits-1)
-        #     else:
-        #         permute_shape.insert(tqbit,self.nqubits-1)
-        #         permute_shape.insert(cqbit,self.nqubits-2)
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     return MPS
-        # else:
-        #     assert len(MPS.shape) == self.nqubits+1
-        #     permute_shape = list( range(self.nqubits+1) )
-        #     permute_shape.remove(cqbit+1)
-        #     permute_shape.remove(tqbit+1)
-        #     permute_shape = permute_shape + [cqbit+1, tqbit+1]
-                
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     s = list( MPS.shape )
-        #     s[-2] = s[-2]*s[-1]
-        #     s[-1] = 1
-        #     MPS = MPS.reshape(s)
-            
-        #     MPS = self.matrix @ MPS
-            
-        #     #MPS = MPS.view([2]*self.nqubits)
-        #     MPS = MPS.view([s[0]]+[2]*self.nqubits)
-            
-        #     permute_shape = list( range(self.nqubits+1) )
-        #     permute_shape.pop()
-        #     permute_shape.pop()
-        #     if cqbit < tqbit:
-        #         permute_shape.insert(cqbit+1,self.nqubits-1)
-        #         permute_shape.insert(tqbit+1,self.nqubits)
-        #     else:
-        #         permute_shape.insert(tqbit+1,self.nqubits)
-        #         permute_shape.insert(cqbit+1,self.nqubits-1)
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     return MPS
     
     
     
@@ -1389,11 +985,7 @@ class cz(Operation):
 
 
 
-class cphase(Operation):
-    # label = "cphase"
-    # num_params = 1
-    # num_wires = 2          
-    # self_inverse = False
+class cphase(TwoQbitGateOperation):
     
     def __init__(self, theta, N=-1, wires=-1):
         #wires以list形式输入，包含控制比特和受控比特
@@ -1463,76 +1055,7 @@ class cphase(Operation):
     def TN_contract(self,MPS:torch.Tensor, batch_mod:bool=False):
         MPS = _cphase_TN_contract(self.nqubits, self.wires, self.matrix, MPS, batch_mod=batch_mod)
         return MPS
-        # if self.nqubits == -1 or self.wires == -1:
-        #     raise ValueError("cphase gate input error! cannot TN_contract")
-        # cqbit = self.wires[0]
-        # tqbit = self.wires[1]
-        # assert cqbit != tqbit
-        
-        # if batch_mod == False:
-        #     assert len(MPS.shape) == self.nqubits
-        #     permute_shape = list( range(self.nqubits) )
-        #     permute_shape.remove(cqbit)
-        #     permute_shape.remove(tqbit)
-        #     permute_shape = permute_shape + [cqbit, tqbit]
-                
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     s = list( MPS.shape )
-        #     s[-2] = s[-2]*s[-1]
-        #     s[-1] = 1
-        #     MPS = MPS.reshape(s)
-            
-        #     MPS = self.matrix @ MPS
-            
-        #     MPS = MPS.view([2]*self.nqubits)
-            
-        #     permute_shape = list( range(self.nqubits) )
-        #     permute_shape.pop()
-        #     permute_shape.pop()
-        #     if cqbit < tqbit:
-        #         permute_shape.insert(cqbit,self.nqubits-2)
-        #         permute_shape.insert(tqbit,self.nqubits-1)
-        #     else:
-        #         permute_shape.insert(tqbit,self.nqubits-1)
-        #         permute_shape.insert(cqbit,self.nqubits-2)
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     return MPS
-        # else:
-        #     assert len(MPS.shape) == self.nqubits+1
-        #     permute_shape = list( range(self.nqubits+1) )
-        #     permute_shape.remove(cqbit+1)
-        #     permute_shape.remove(tqbit+1)
-        #     permute_shape = permute_shape + [cqbit+1, tqbit+1]
-                
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     s = list( MPS.shape )
-        #     s[-2] = s[-2]*s[-1]
-        #     s[-1] = 1
-        #     MPS = MPS.reshape(s)
-            
-        #     MPS = self.matrix @ MPS
-            
-        #     MPS = MPS.view([s[0]]+[2]*self.nqubits)
-            
-        #     permute_shape = list( range(self.nqubits+1) )
-        #     permute_shape.pop()
-        #     permute_shape.pop()
-        #     #permute_shape = permute_shape[:-2]
-        #     if cqbit < tqbit:
-        #         permute_shape.insert(cqbit+1,self.nqubits-1)
-        #         permute_shape.insert(tqbit+1,self.nqubits)
-        #     else:
-        #         permute_shape.insert(tqbit+1,self.nqubits)
-        #         permute_shape.insert(cqbit+1,self.nqubits-1)
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     return MPS
-            
-    
-    
+
     
     def operation_dagger(self):
         return cphase(-1*self.params,self.nqubits,self.wires)
@@ -1554,7 +1077,7 @@ class cphase(Operation):
 
 
 
-class cu3(Operation):
+class cu3(TwoQbitGateOperation):
     def __init__(self,theta_lst,N=-1,wires=-1):
         #wires以list形式输入
         self.label = "cu3"
@@ -1624,73 +1147,7 @@ class cu3(Operation):
     def TN_contract(self, MPS:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
         MPS = _cu3_TN_contract(self.nqubits, self.wires, self.matrix, MPS, batch_mod=batch_mod)
         return MPS
-        # if self.nqubits == -1 or self.wires == -1:
-        #     raise ValueError("cu3 gate input error! cannot TN_contract")
-        # cqbit = self.wires[0]
-        # tqbit = self.wires[1]
-        # assert cqbit != tqbit
         
-        # if batch_mod == False:
-        #     assert len(MPS.shape) == self.nqubits
-        #     permute_shape = list( range(self.nqubits) )
-        #     permute_shape.remove(cqbit)
-        #     permute_shape.remove(tqbit)
-        #     permute_shape = permute_shape + [cqbit, tqbit]
-                
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     s = list( MPS.shape )
-        #     s[-2] = s[-2]*s[-1]
-        #     s[-1] = 1
-        #     MPS = MPS.reshape(s)
-            
-        #     MPS = self.matrix @ MPS
-            
-        #     MPS = MPS.view([2]*self.nqubits)
-            
-        #     permute_shape = list( range(self.nqubits) )
-        #     permute_shape.pop()
-        #     permute_shape.pop()
-        #     if cqbit < tqbit:
-        #         permute_shape.insert(cqbit,self.nqubits-2)
-        #         permute_shape.insert(tqbit,self.nqubits-1)
-        #     else:
-        #         permute_shape.insert(tqbit,self.nqubits-1)
-        #         permute_shape.insert(cqbit,self.nqubits-2)
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     return MPS
-        # else:
-        #     assert len(MPS.shape) == self.nqubits+1
-        #     permute_shape = list( range(self.nqubits+1) )
-        #     permute_shape.remove(cqbit+1)
-        #     permute_shape.remove(tqbit+1)
-        #     permute_shape = permute_shape + [cqbit+1, tqbit+1]
-                
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     s = list( MPS.shape )
-        #     s[-2] = s[-2]*s[-1]
-        #     s[-1] = 1
-        #     MPS = MPS.reshape(s)
-            
-        #     MPS = self.matrix @ MPS
-            
-        #     MPS = MPS.view([s[0]]+[2]*self.nqubits)
-            
-        #     permute_shape = list( range(self.nqubits+1) )
-        #     permute_shape.pop()
-        #     permute_shape.pop()
-        #     #permute_shape = permute_shape[:-2]
-        #     if cqbit < tqbit:
-        #         permute_shape.insert(cqbit+1,self.nqubits-1)
-        #         permute_shape.insert(tqbit+1,self.nqubits)
-        #     else:
-        #         permute_shape.insert(tqbit+1,self.nqubits)
-        #         permute_shape.insert(cqbit+1,self.nqubits-1)
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     return MPS
             
     
     def operation_dagger(self):
@@ -1724,15 +1181,7 @@ class cu3(Operation):
 
 
 
-class SWAP(Operation):
-    # label = "SWAP"
-    # num_params = 0
-    # num_wires = 2          
-    # self_inverse = True
-    # matrix = torch.tensor([[1,0,0,0],\
-    #                        [0,0,1,0],\
-    #                        [0,1,0,0],\
-    #                        [0,0,0,1]]) + 0j
+class SWAP(TwoQbitGateOperation):
     
     def __init__(self,N=-1,wires=-1):
         #wires以list形式输入
@@ -1798,12 +1247,6 @@ class SWAP(Operation):
             temp = (self.matrix @ temp).view(s[0],s[1],s[2],s[3])
             temp = temp.permute(2,3,0,1)
             MPS[i],MPS[i+1] = TensorDecompAfterTwoQbitGate(temp)
-            
-            # temp = (MPS[i].unsqueeze(1) @ MPS[i+1].unsqueeze(0) )
-            # t = copy.deepcopy( temp[0,1,:,:] )
-            # temp[0,1,:,:] = temp[1,0,:,:]
-            # temp[1,0,:,:] = t
-            # MPS[i],MPS[i+1] = TensorDecompAfterTwoQbitGate(temp)
         for i in range(downqbit-1,upqbit,-1):
             temp = (MPS[i-1].unsqueeze(1) @ MPS[i].unsqueeze(0) ).permute(2,3,0,1)
             s = temp.shape
@@ -1812,66 +1255,13 @@ class SWAP(Operation):
             temp = temp.permute(2,3,0,1)
             MPS[i-1],MPS[i] = TensorDecompAfterTwoQbitGate(temp)
             
-            # temp = MPS[i-1].unsqueeze(1) @ MPS[i].unsqueeze(0)
-            # t = copy.deepcopy( temp[0,1,:,:] )
-            # temp[0,1,:,:] = temp[1,0,:,:]
-            # temp[1,0,:,:] = t
-            # MPS[i-1],MPS[i] = TensorDecompAfterTwoQbitGate(temp)
+           
         return MPS
     
     def TN_contract(self, MPS:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
         MPS = _SWAP_TN_contract(self.nqubits, self.wires, self.matrix, MPS, batch_mod=batch_mod)
         return MPS
-        # if self.nqubits == -1 or self.wires == -1:
-        #     raise ValueError("SWAP gate input error! cannot TN_contract")
-        # cqbit = self.wires[0]
-        # tqbit = self.wires[1]
-        # assert cqbit != tqbit
         
-        # if batch_mod == False:
-        #     assert len(MPS.shape) == self.nqubits
-            
-        #     permute_shape = list( range(self.nqubits) )
-        #     permute_shape[cqbit] = tqbit
-        #     permute_shape[tqbit] = cqbit
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     # permute_shape = list( range(self.nqubits) )
-        #     # permute_shape.remove(cqbit)
-        #     # permute_shape.remove(tqbit)
-        #     # permute_shape = permute_shape + [cqbit, tqbit]
-                
-        #     # MPS = MPS.permute(permute_shape)
-            
-        #     # s = list( MPS.shape )
-        #     # s[-2] = s[-2]*s[-1]
-        #     # s[-1] = 1
-        #     # MPS = MPS.reshape(s)
-            
-        #     # MPS = self.matrix @ MPS
-            
-        #     # MPS = MPS.view([2]*self.nqubits)
-            
-        #     # permute_shape = list( range(self.nqubits) )
-        #     # permute_shape.pop()
-        #     # permute_shape.pop()
-        #     # if cqbit < tqbit:
-        #     #     permute_shape.insert(cqbit,self.nqubits-2)
-        #     #     permute_shape.insert(tqbit,self.nqubits-1)
-        #     # else:
-        #     #     permute_shape.insert(tqbit,self.nqubits-1)
-        #     #     permute_shape.insert(cqbit,self.nqubits-2)
-        #     # MPS = MPS.permute(permute_shape)
-            
-        #     return MPS
-        # else:
-        #     assert len(MPS.shape) == self.nqubits+1
-            
-        #     permute_shape = list( range(self.nqubits+1) )
-        #     permute_shape[cqbit+1] = tqbit+1
-        #     permute_shape[tqbit+1] = cqbit+1
-        #     MPS = MPS.permute(permute_shape)
-        #     return MPS
             
     
     def operation_dagger(self):
@@ -1892,18 +1282,6 @@ class SWAP(Operation):
 #==============================无参数多比特门==================================
 
 class toffoli(Operation):
-    # label = "toffoli"
-    # num_params = 0
-    # num_wires = 3       
-    # self_inverse = True
-    # matrix = torch.tensor([[1,0,0,0,0,0,0,0],\
-    #                        [0,1,0,0,0,0,0,0],\
-    #                        [0,0,1,0,0,0,0,0],\
-    #                        [0,0,0,1,0,0,0,0],\
-    #                        [0,0,0,0,1,0,0,0],\
-    #                        [0,0,0,0,0,1,0,0],\
-    #                        [0,0,0,0,0,0,0,1],\
-    #                        [0,0,0,0,0,0,1,0]]) + 0j
     
     def __init__(self,N=-1,wires=-1):
         #wires以list形式输入
@@ -1951,24 +1329,10 @@ class toffoli(Operation):
         #通过一堆SWAP把upqbit和downqbit移动到midqbit的近邻
         for i in range(upqbit,midqbit-1):
             MPS = SWAP(self.nqubits,[i,i+1]).TN_operation(MPS)
-            # temp = (MPS[i].unsqueeze(1) @ MPS[i+1].unsqueeze(0) ).permute(2,3,0,1)
-            # shape = temp.shape
-            # temp = temp.view(shape[0],shape[1],shape[2]*shape[3],1)
-            # temp = SWAP().matrix @ temp
-            # temp = temp.view(shape[0],shape[1],shape[2],shape[3])
-            # temp = temp.permute(2,3,0,1)
-            # #融合后的张量恢复成两个张量
-            # MPS[i],MPS[i+1] = TensorDecompAfterTwoQbitGate(temp)
+            
         for i in range(downqbit,midqbit+1,-1):
             MPS = SWAP(self.nqubits,[i-1,i]).TN_operation(MPS)
-            # temp = (MPS[i-1].unsqueeze(1) @ MPS[i].unsqueeze(0) ).permute(2,3,0,1)
-            # shape = temp.shape
-            # temp = temp.view(shape[0],shape[1],shape[2]*shape[3],1)
-            # temp = SWAP().matrix @ temp
-            # temp = temp.view(shape[0],shape[1],shape[2],shape[3])
-            # temp = temp.permute(2,3,0,1)
-            # #融合后的张量恢复成两个张量
-            # MPS[i-1],MPS[i] = TensorDecompAfterTwoQbitGate(temp)
+            
         
         
         
@@ -1993,141 +1357,21 @@ class toffoli(Operation):
         #通过一堆SWAP把upqbit和downqbit移动到midqbit的近邻
         for i in range(midqbit-1,upqbit,-1):
             MPS = SWAP(self.nqubits,[i-1,i]).TN_operation(MPS)
-            # temp = (MPS[i-1].unsqueeze(1) @ MPS[i].unsqueeze(0) ).permute(2,3,0,1)
-            # shape = temp.shape
-            # temp = temp.view(shape[0],shape[1],shape[2]*shape[3],1)
-            # temp = SWAP().matrix @ temp
-            # temp = temp.view(shape[0],shape[1],shape[2],shape[3])
-            # temp = temp.permute(2,3,0,1)
-            # #融合后的张量恢复成两个张量
-            # MPS[i-1],MPS[i] = TensorDecompAfterTwoQbitGate(temp)
+            
         for i in range(midqbit+1,downqbit):
             MPS = SWAP(self.nqubits,[i,i+1]).TN_operation(MPS)
-            # temp = (MPS[i].unsqueeze(1) @ MPS[i+1].unsqueeze(0) ).permute(2,3,0,1)
-            # shape = temp.shape
-            # temp = temp.view(shape[0],shape[1],shape[2]*shape[3],1)
-            # temp = SWAP().matrix @ temp
-            # temp = temp.view(shape[0],shape[1],shape[2],shape[3])
-            # temp = temp.permute(2,3,0,1)
-            # #融合后的张量恢复成两个张量
-            # MPS[i],MPS[i+1] = TensorDecompAfterTwoQbitGate(temp)
+            
         return MPS
     
     
     def TN_contract(self, MPS:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
         MPS = _toffoli_TN_contract(self.nqubits, self.wires, self.matrix, MPS, batch_mod=batch_mod)
         return MPS
-        # if self.nqubits == -1 or self.wires == -1:
-        #     raise ValueError("toffoli gate input error! cannot TN_contract")
-        # cqbit1 = self.wires[0]
-        # cqbit2 = self.wires[1]
-        # tqbit = self.wires[2]
-        # assert cqbit1 != tqbit and cqbit2 != tqbit and cqbit1 != cqbit2
+    
+    def TN_contract_Rho(self, MPDO:torch.Tensor, batch_mod:bool=False)->torch.Tensor:
+        MPDO = _toffoli_TN_contract_Rho(self.nqubits, self.wires, self.matrix, MPDO, batch_mod=batch_mod)
+        return MPDO
         
-        # if batch_mod == False:
-        #     assert len(MPS.shape) == self.nqubits
-            
-        #     permute_shape = list( range(self.nqubits) )
-        #     permute_shape.remove(cqbit1)
-        #     permute_shape.remove(cqbit2)
-        #     permute_shape.remove(tqbit)
-        #     permute_shape = permute_shape + [cqbit1, cqbit2, tqbit]
-                
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     s = list( MPS.shape )
-        #     s[-3] = s[-3]*s[-2]*s[-1]
-        #     s[-2],s[-1] = 1,1
-        #     MPS = MPS.reshape(s)
-        #     MPS = MPS.squeeze(-1)
-            
-        #     MPS = self.matrix @ MPS
-            
-        #     MPS = MPS.view([2]*self.nqubits)
-            
-        #     permute_shape = list( range(self.nqubits) )
-        #     permute_shape.pop()
-        #     permute_shape.pop()
-        #     permute_shape.pop()
-        #     if cqbit1 < cqbit2 and cqbit2 < tqbit:
-        #         permute_shape.insert(cqbit1, self.nqubits-3)
-        #         permute_shape.insert(cqbit2, self.nqubits-2)
-        #         permute_shape.insert(tqbit,  self.nqubits-1)
-        #     elif cqbit1 < tqbit and tqbit < cqbit2:
-        #         permute_shape.insert(cqbit1, self.nqubits-3)
-        #         permute_shape.insert(tqbit,  self.nqubits-1)
-        #         permute_shape.insert(cqbit2, self.nqubits-2)
-        #     elif cqbit2 < tqbit and tqbit < cqbit1:
-        #         permute_shape.insert(cqbit2, self.nqubits-2)
-        #         permute_shape.insert(tqbit,  self.nqubits-1)
-        #         permute_shape.insert(cqbit1, self.nqubits-3)
-        #     elif cqbit2 < cqbit1 and cqbit1 < tqbit:
-        #         permute_shape.insert(cqbit2, self.nqubits-2)
-        #         permute_shape.insert(cqbit1, self.nqubits-3)
-        #         permute_shape.insert(tqbit,  self.nqubits-1)
-        #     elif tqbit < cqbit1 and cqbit1 < cqbit2:
-        #         permute_shape.insert(tqbit,  self.nqubits-1)
-        #         permute_shape.insert(cqbit1, self.nqubits-3)
-        #         permute_shape.insert(cqbit2, self.nqubits-2)
-        #     elif tqbit < cqbit2 and cqbit2 < cqbit1:
-        #         permute_shape.insert(tqbit,  self.nqubits-1)
-        #         permute_shape.insert(cqbit2, self.nqubits-2)
-        #         permute_shape.insert(cqbit1, self.nqubits-3)
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     return MPS
-        # else:
-        #     assert len(MPS.shape) == self.nqubits+1
-            
-        #     permute_shape = list( range(self.nqubits+1) )
-        #     permute_shape.remove(cqbit1+1)
-        #     permute_shape.remove(cqbit2+1)
-        #     permute_shape.remove(tqbit+1)
-        #     permute_shape = permute_shape + [cqbit1+1, cqbit2+1, tqbit+1]
-                
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     s = list( MPS.shape )
-        #     s[-3] = s[-3]*s[-2]*s[-1]
-        #     s[-2],s[-1] = 1,1
-        #     MPS = MPS.reshape(s)
-        #     MPS = MPS.squeeze(-1)
-            
-        #     MPS = self.matrix @ MPS
-            
-        #     MPS = MPS.view([s[0]]+[2]*self.nqubits)
-            
-        #     permute_shape = list( range(self.nqubits+1) )
-        #     permute_shape.pop()
-        #     permute_shape.pop()
-        #     permute_shape.pop()
-        #     if cqbit1 < cqbit2 and cqbit2 < tqbit:
-        #         permute_shape.insert(cqbit1+1, self.nqubits-2)
-        #         permute_shape.insert(cqbit2+1, self.nqubits-1)
-        #         permute_shape.insert(tqbit+1,  self.nqubits)
-        #     elif cqbit1 < tqbit and tqbit < cqbit2:
-        #         permute_shape.insert(cqbit1+1, self.nqubits-2)
-        #         permute_shape.insert(tqbit+1,  self.nqubits)
-        #         permute_shape.insert(cqbit2+1, self.nqubits-1)
-        #     elif cqbit2 < tqbit and tqbit < cqbit1:
-        #         permute_shape.insert(cqbit2+1, self.nqubits-1)
-        #         permute_shape.insert(tqbit+1,  self.nqubits)
-        #         permute_shape.insert(cqbit1+1, self.nqubits-2)
-        #     elif cqbit2 < cqbit1 and cqbit1 < tqbit:
-        #         permute_shape.insert(cqbit2+1, self.nqubits-1)
-        #         permute_shape.insert(cqbit1+1, self.nqubits-2)
-        #         permute_shape.insert(tqbit+1,  self.nqubits)
-        #     elif tqbit < cqbit1 and cqbit1 < cqbit2:
-        #         permute_shape.insert(tqbit+1,  self.nqubits)
-        #         permute_shape.insert(cqbit1+1, self.nqubits-2)
-        #         permute_shape.insert(cqbit2+1, self.nqubits-1)
-        #     elif tqbit < cqbit2 and cqbit2 < cqbit1:
-        #         permute_shape.insert(tqbit+1,  self.nqubits)
-        #         permute_shape.insert(cqbit2+1, self.nqubits-1)
-        #         permute_shape.insert(cqbit1+1, self.nqubits-2)
-        #     MPS = MPS.permute(permute_shape)
-            
-        #     return MPS
     
     def operation_dagger(self):
         return self
@@ -2147,11 +1391,7 @@ class toffoli(Operation):
 
 
 class multi_control_cnot(Operation):
-    #label = "multi_control_cnot"
-    #num_params = 0
-    #num_wires = 3       
-    #self_inverse = True
-    #matrix = None
+    
     
     def __init__(self,N=-1,wires=-1):
         #wires以list形式输入
