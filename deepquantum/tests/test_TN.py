@@ -12,6 +12,7 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 import random
 import time
+import timeit
 
 
 from deepquantum.gates.qmath import multi_kron, measure, IsUnitary, IsNormalized
@@ -442,6 +443,13 @@ def circuit_TN_contract_Rho_test():
     
 circuit_TN_contract_Rho_test()
     
+N = 6
+c1 = create_circuit(N)
+c1.rxx(0.124, [2,5])
+t1 = timeit.default_timer()
+c1.gate[0].U_expand()
+t2 = timeit.default_timer()
+print(t2-t1)
     
     
     
