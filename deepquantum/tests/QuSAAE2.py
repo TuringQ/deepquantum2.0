@@ -192,8 +192,7 @@ class QuDe(nn.Module):
         
         return decoder_rst
         
-        
-
+    
 
 class Q_Decoder(nn.Module):
     def __init__(self, n_qubits):
@@ -298,7 +297,7 @@ class QuDis(nn.Module):
             x = x.reshape(-1,1)
             x0 = x0.reshape(1,-1)
             
-        rst = (x0 @ x).real
+        rst = (x0.conj() @ x).real   
         rst = rst.squeeze(-1)
         return rst
         

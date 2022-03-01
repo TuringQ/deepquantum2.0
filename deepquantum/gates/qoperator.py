@@ -1016,7 +1016,9 @@ class cphase(TwoQbitGateOperation):
     def U_expand(self):
         if self.nqubits != -1 and self.wires != -1:
             exp_itheta = torch.cos(self.params) + 1j * torch.sin(self.params)
-            phase_gate = torch.tensor( [[1,0],[0,exp_itheta]] ) + 0j
+            mt = torch.tensor([[0,0],\
+                               [0,1]])
+            phase_gate = torch.eye(2,2)+(exp_itheta-1)*mt + 0j
             control = self.wires[0]
             target = self.wires[1]
             return Operation.two_qubit_control_gate( phase_gate, self.nqubits, control, target )
