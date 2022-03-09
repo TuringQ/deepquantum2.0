@@ -162,7 +162,7 @@ class XYZLayer(SingleGateLayer):
     def params_update(self,params_lst):
         self.params = params_lst
         self.num_params = len(params_lst)
-    
+
 
 class ZYXLayer(SingleGateLayer):
     #label = "ZYXLayer"
@@ -237,7 +237,55 @@ class ZYXLayer(SingleGateLayer):
         self.num_params = len(params_lst)
 
 
+class ZYZLayer(SingleGateLayer):
+    """
+    zyz layer
+    """
+    def __init__(self, N, wires, params_lst):
+        if 3 * len(wires) != len(params_lst):
+            raise ValueError("ZYZLayer: number of parameters not match")
+        if len(wires) > N:
+            raise ValueError("ZYZLayer: number of wires must less than N")
+        self.label = "ZYZLayer"
 
+        self.nqubits = N
+        self.wires = wires
+        # 如果是列表，先转成tensor
+        if type(params_lst) == type([1]):
+            params_lst = torch.tensor(params_lst)
+        self.params = params_lst
+        self.num_params = len(params_lst)
+        self.supportTN = True
+
+    def _cal_single_gates(self):
+        lst1 = [torch.eye(2, 2)] * self.nqubits
+        c, s = torch.cos(0.5 * self.params), torch.sin(0.5 * self.params)
+        Y = torch.tensor([[0, -1j], [1j, 0]])
+        Z = torch.tensor([[1, 0], [0, -1]])
+        I = torch.eye(2, 2)
+        for i, qbit in enumerate(self.wires):
+            index = 3 * i + 0
+            z1m = c[index] * I - 1j * s[index] * Z
+            index += 1
+            ym = c[index] * I - 1j * s[index] * Y
+            index += 1
+            z2m = c[index] * I - 1j * s[index] * Z
+            lst1[qbit] = z2m @ ym @ z1m
+        return lst1
+
+    def U_expand(self):
+        lst1 = self._cal_single_gates()
+        return multi_kron(lst1) + 0j
+
+    def operation_dagger(self):
+        pass
+
+    def info(self):
+        info = {'label': self.label, 'contral_lst': [], 'target_lst': self.wires, 'params': self.params}
+        return info
+
+    def params_update(self, params_lst):
+        pass
 
 
 class YZYLayer(SingleGateLayer):
