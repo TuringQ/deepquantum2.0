@@ -13,6 +13,7 @@ from deepquantum import Circuit
 from deepquantum import dag
 from deepquantum.gates.qmath import multi_kron, measure, IsUnitary, IsNormalized
 import deepquantum.gates.qoperator as op
+from deepquantum.gates.qtensornetwork import MatrixProductDensityOperator
 
 
 def Zmeasure(self):
@@ -42,6 +43,7 @@ class QuanConv2D(nn.Module):
         if n_qubits != kernel_size**2:
             raise ValueError("number of qubits must == kernel_size")
         self.n_qubits = n_qubits
+        self.dim = (1 << self.n_qubits)
         self.stride = stride
         self.kernel_size = kernel_size
         self.M_lst = self.Zmeasure()
@@ -59,23 +61,22 @@ class QuanConv2D(nn.Module):
         cir1 = Circuit(self.n_qubits)
         for which_q in range(0, self.n_qubits, 1):
             cir1.ry(theta=np.pi * data[which_q], wires=which_q)
-        out = cir1.U()
-        return out
+        # out = cir1.U()
+        # return out
+        return cir1
 
     def _qconv(self, rho):
         cir2 = Circuit(self.n_qubits)
         w = self.weight * self.w_mul
-
-        for which_q in range(0, self.n_qubits, 1):
-            cir2.rx(theta=w[3*which_q+0], wires=which_q)
-            cir2.rz(theta=w[3*which_q+1], wires=which_q)
-            cir2.rx(theta=w[3*which_q+2], wires=which_q)
+        wires = list(range(self.n_qubits))
+        cir2.XZXLayer(wires, w)
 
         for which_q in range(0, self.n_qubits, 1):
             cir2.cnot(wires=[which_q, (which_q+1) % self.n_qubits])
-        U = cir2.U()
-        qconv_out = U @ rho @ dag(U)
 
+        rho = MatrixProductDensityOperator(rho, self.n_qubits)
+        rho = cir2.TN_contract_evolution(rho, batch_mod=False)
+        qconv_out = rho.reshape(self.dim, self.dim)
         return qconv_out
 
     def forward(self, input):
@@ -97,8 +98,11 @@ class QuanConv2D(nn.Module):
                     # print("x::", x, j, j+self.kernel_size, k, k+self.kernel_size)
                     init_matrix = torch.zeros(2**self.n_qubits, 2**self.n_qubits) + 0j
                     init_matrix[0, 0] = 1 + 0j
-                    U1 = self._input(x)
-                    rho_out1 = U1 @ init_matrix @ dag(U1)
+                    cir = self._input(x)
+                    init_matrix = MatrixProductDensityOperator(init_matrix, self.n_qubits)
+                    init_matrix = cir.TN_contract_evolution(init_matrix, batch_mod=False)
+                    rho_out1 = init_matrix.reshape(self.dim, self.dim)
+
                     rho_out2 = self._qconv(rho_out1)
                     measure_rst = measure(self.n_qubits, state=rho_out2)
                     classical_value = measure_rst
@@ -113,12 +117,24 @@ class Net(nn.Module):
     def __init__(self):
         super(Net, self).__init__()
         self.quanv = QuanConv2D(n_qubits=4, stride=2, kernel_size=2)
-        self.fc1 = nn.Linear(14*14*4, 64)
+        self.fc1 = nn.Linear(256, 64)
         self.fc2 = nn.Linear(64, 10)
 
     def forward(self, x):
         x = self.quanv(x)
+        print(f'x1.shape: {x.shape}')
         x = torch.flatten(x, 1)
+        print(f'x2.shape: {x.shape}')
+
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
         return x
+
+
+if __name__ == '__main__':
+    n_qubits = 4
+    x = torch.rand((4, 2, 2**n_qubits, 2**n_qubits)) + 0j
+
+    net = Net()
+    rst = net(x)
+    print(rst.shape)
