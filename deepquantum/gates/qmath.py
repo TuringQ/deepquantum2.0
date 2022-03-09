@@ -27,6 +27,22 @@ def dag(x):
     return x_dag
 
 
+def encoding(x):
+    """
+    perform L2 regularization on x, x为complex
+    """
+    with torch.no_grad():
+        if x.norm() != 0:
+            xd = x.diag()
+            xds = (xd.sqrt()).unsqueeze(1)
+            xdsn = xds / (xds.norm() + 1e-12)
+            xdsn2 = xdsn @ dag(xdsn)
+            xdsn2 = xdsn2.type(dtype=torch.complex64)
+        else:
+            raise ValueError("not zero matrix!")
+    return xdsn2
+
+
 def IsUnitary(in_matrix):
     '''
     判断一个矩阵是否是酉矩阵
@@ -109,8 +125,11 @@ def ptrace(rhoAB, dimA, dimB):
     mat_dim_A = 2 ** dimA
     mat_dim_B = 2 ** dimB
 
-    id1 = torch.eye(mat_dim_A, requires_grad=True) + 0.j
-    id2 = torch.eye(mat_dim_B, requires_grad=True) + 0.j
+    # id1 = torch.eye(mat_dim_A, requires_grad=True) + 0.j
+    # id2 = torch.eye(mat_dim_B, requires_grad=True) + 0.j
+
+    id1 = torch.eye(mat_dim_A) + 0.j
+    id2 = torch.eye(mat_dim_B) + 0.j
 
     pout = 0
     for i in range(mat_dim_B):
