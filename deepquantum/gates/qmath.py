@@ -100,17 +100,22 @@ def IsHermitian(matrix):
 
 
 
-def ptrace(rhoAB, dimA, dimB):
+def ptrace(rhoAB, dimA, dimB, dev='cpu'):
     """
     rhoAB : density matrix
     dimA: n_qubits A keep
     dimB: n_qubits B trash
     """
+    if dev == "gpu" or dev == "cuda":
+        assert rhoAB.is_cuda, "------MPS must be on-cuda-----"
+
+    device = torch.device("cuda" if (dev == "gpu" or dev == "cuda") else "cpu")
+
     mat_dim_A = 2 ** dimA
     mat_dim_B = 2 ** dimB
 
-    id1 = torch.eye(mat_dim_A, requires_grad=True) + 0.j
-    id2 = torch.eye(mat_dim_B, requires_grad=True) + 0.j
+    id1 = torch.eye(mat_dim_A, requires_grad=True).to(device) + 0.j
+    id2 = torch.eye(mat_dim_B, requires_grad=True).to(device) + 0.j
 
     pout = 0
     for i in range(mat_dim_B):
@@ -208,43 +213,42 @@ def partial_trace_batched3(rho_batch, N, trace_lst):
     
     return pt_rst
 
-def partial_trace_batched(rho_batch, N, trace_lst):
+def partial_trace_batched(rho_batch, N, trace_lst, dev):
     '''
     用for循环批处理偏迹，但是三重循环求列表的过程只需执行一次
     '''
-    trace_lst.sort()#必须从小到大排列
+    trace_lst.sort()  # 必须从小到大排列
     assert rho_batch.ndim == 3
-    assert rho_batch.shape[1] == 2**N and rho_batch.shape[2] == 2**N
-    
+    assert rho_batch.shape[1] == 2 ** N and rho_batch.shape[2] == 2 ** N
+    device = torch.device("cuda" if (dev == "gpu" or dev == "cuda") else "cpu")
     rc_lst = []
     trace_lst1 = copy.deepcopy(trace_lst)
     while len(trace_lst1) > 0:
-        i = int(trace_lst1[0]) 
-        index_lst0 = []  #该列表记录当左右乘0态时，哪些行、列要被保留
-        index_lst1 = []  #该列表记录当左右乘1态时，哪些行、列要被保留
-        for idx in range(2**i):
-            for idy in range(2**(N-i-1)):
-                index_lst0.append(idx * (2**(N-i)) + idy)
-                index_lst1.append(idx * (2**(N-i)) + idy + 2**(N-i-1))
-        rc_lst.append( (index_lst0, index_lst1) )
-        
-        trace_lst1 = [ j-1 for j in trace_lst1[1:] ]
+        i = int(trace_lst1[0])
+        index_lst0 = []  # 该列表记录当左右乘0态时，哪些行、列要被保留
+        index_lst1 = []  # 该列表记录当左右乘1态时，哪些行、列要被保留
+        for idx in range(2 ** i):
+            for idy in range(2 ** (N - i - 1)):
+                index_lst0.append(idx * (2 ** (N - i)) + idy)
+                index_lst1.append(idx * (2 ** (N - i)) + idy + 2 ** (N - i - 1))
+        rc_lst.append((index_lst0, index_lst1))
+
+        trace_lst1 = [j - 1 for j in trace_lst1[1:]]
         N = N - 1
-    
-    for idx, rho in enumerate( rho_batch ):
-        
+
+    for idx, rho in enumerate(rho_batch):
+
         new_rho = rho
         for each in rc_lst:
-            new_rho = new_rho.index_select( 0, torch.tensor(each[0]) ).index_select( 1, torch.tensor(each[0]) )\
-                    + new_rho.index_select( 0, torch.tensor(each[1]) ).index_select( 1, torch.tensor(each[1]) )
-        
+            new_rho = new_rho.index_select(0, torch.tensor(each[0]).to(device)).index_select(1, torch.tensor(each[0]).to(device)) \
+                      + new_rho.index_select(0, torch.tensor(each[1]).to(device)).index_select(1, torch.tensor(each[1]).to(device))
+
         if idx == 0:
             pt_rst = new_rho.unsqueeze(0)
         else:
-            pt_rst = torch.cat((pt_rst,new_rho.unsqueeze(0)), dim=0)
-    
-    return pt_rst
+            pt_rst = torch.cat((pt_rst, new_rho.unsqueeze(0)), dim=0)
 
+    return pt_rst
 
 def partial_trace_batched2(rho_batch, N, trace_lst):
     '''
